@@ -9,9 +9,15 @@ package com.activeviam.tooling.gitstats;
 
 import com.activeviam.tooling.gitstats.internal.BranchCommitReader;
 import com.activeviam.tooling.gitstats.internal.ReadCommitDetails;
+import com.activeviam.tooling.gitstats.internal.writing.BranchWriter;
+import com.activeviam.tooling.gitstats.internal.writing.FileChangeWriter;
+import com.activeviam.tooling.gitstats.internal.writing.PayloadImpl;
+import java.io.IOException;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.concurrent.LinkedBlockingQueue;
+import java.util.function.Function;
 import java.util.logging.Logger;
 import org.apache.commons.cli.CommandLine;
 import org.apache.commons.cli.DefaultParser;
@@ -47,8 +53,27 @@ public class Application {
     final var info = infoReader.read();
     System.out.println("First commit info");
     System.out.println("Date: " + info.date());
-    System.out.println("Changes: " + info.fileChanges());
-    System.out.println("Renamed: " + info.fileRenamings());
+
+    // Write to output
+    try {
+      Files.createDirectories(this.outputDirectory);
+    } catch (IOException e) {
+      throw new RuntimeException("Failed to create output directory", e);
+    }
+
+    final var branchWriter =
+        new BranchWriter(
+            this.outputDirectory.resolve("branch.parquet"),
+            this.branch,
+            new PayloadImpl<>(List.copyOf(output), Function.identity()));
+    branchWriter.write();
+
+    final var commitWriter =
+        new FileChangeWriter(
+            this.branch,
+            new PayloadImpl<>(List.copyOf(info.fileChanges()), Function.identity()),
+            this.outputDirectory.resolve("files.parquet"));
+    commitWriter.write();
   }
 
   public static void main(final String[] args) {

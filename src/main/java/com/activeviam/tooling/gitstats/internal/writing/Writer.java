@@ -7,6 +7,7 @@
 
 package com.activeviam.tooling.gitstats.internal.writing;
 
+import io.opentelemetry.api.trace.Span;
 import java.io.IOException;
 import java.nio.file.Path;
 import org.apache.avro.Schema;
@@ -31,7 +32,8 @@ public abstract class Writer<T> {
     this.data = data;
   }
 
-  public final void write() {
+  protected final void writeToFile() {
+    Span.current().setAttribute("outputFile", this.outputFile.toString());
     try (final var writer = createWriter()) {
       this.data
           .toStream()

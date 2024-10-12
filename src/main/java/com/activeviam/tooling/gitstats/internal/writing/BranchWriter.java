@@ -7,6 +7,7 @@
 
 package com.activeviam.tooling.gitstats.internal.writing;
 
+import io.opentelemetry.instrumentation.annotations.WithSpan;
 import java.nio.file.Path;
 import org.apache.avro.Schema;
 import org.apache.avro.SchemaBuilder;
@@ -44,5 +45,10 @@ public class BranchWriter extends Writer<String> {
   protected void fillRecord(Record record, String changes) {
     record.put("branch", branch);
     record.put("commit", changes);
+  }
+
+  @WithSpan("Write branch details")
+  public void write() {
+    writeToFile();
   }
 }

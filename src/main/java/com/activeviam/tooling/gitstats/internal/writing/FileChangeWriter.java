@@ -8,6 +8,7 @@
 package com.activeviam.tooling.gitstats.internal.writing;
 
 import com.activeviam.tooling.gitstats.internal.ReadCommitDetails.FileChanges;
+import io.opentelemetry.instrumentation.annotations.WithSpan;
 import java.nio.file.Path;
 import org.apache.avro.Schema;
 import org.apache.avro.SchemaBuilder;
@@ -69,5 +70,10 @@ public class FileChangeWriter extends Writer<FileChanges> {
 
   private static String computeFileName(FileChanges changes) {
     return Path.of(changes.filename()).getFileName().toString();
+  }
+
+  @WithSpan("Write file changes")
+  public void write() {
+    writeToFile();
   }
 }
