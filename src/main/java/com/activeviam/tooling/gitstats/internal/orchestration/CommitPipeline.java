@@ -12,19 +12,16 @@ import com.activeviam.tooling.gitstats.internal.explorer.ReadCommitDetails.Commi
 import com.activeviam.tooling.gitstats.internal.orchestration.Action.Stop;
 import com.activeviam.tooling.gitstats.internal.orchestration.Action.Value;
 import java.nio.file.Path;
+import lombok.RequiredArgsConstructor;
 
 /**
  * @author ActiveViam
  */
-public class Pipeline {
+@RequiredArgsConstructor
+public class CommitPipeline {
 
   private final Queue<Action<FetchCommit>> commitQueue;
   private final Queue<Action<CommitDetails>> infoQueue;
-
-  public Pipeline(Queue<Action<FetchCommit>> commitQueue, Queue<Action<CommitDetails>> infoQueue) {
-    this.commitQueue = commitQueue;
-    this.infoQueue = infoQueue;
-  }
 
   public void run() {
     while (true) {
@@ -35,7 +32,7 @@ public class Pipeline {
             final var info = infoReader.read();
             this.infoQueue.put(Action.value(info));
           }
-          case Stop _ -> {
+          case Stop<?> _ -> {
             this.infoQueue.put(Action.stop());
             return;
         }

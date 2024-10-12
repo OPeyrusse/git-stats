@@ -10,8 +10,8 @@ package com.activeviam.tooling.gitstats;
 import com.activeviam.tooling.gitstats.internal.explorer.BranchCommitReader;
 import com.activeviam.tooling.gitstats.internal.explorer.ReadCommitDetails.CommitDetails;
 import com.activeviam.tooling.gitstats.internal.orchestration.Action;
-import com.activeviam.tooling.gitstats.internal.orchestration.Pipeline;
-import com.activeviam.tooling.gitstats.internal.orchestration.Pipeline.FetchCommit;
+import com.activeviam.tooling.gitstats.internal.orchestration.CommitPipeline;
+import com.activeviam.tooling.gitstats.internal.orchestration.CommitPipeline.FetchCommit;
 import com.activeviam.tooling.gitstats.internal.orchestration.Queue;
 import com.activeviam.tooling.gitstats.internal.writing.BranchWriter;
 import com.activeviam.tooling.gitstats.internal.writing.FileChangeWriter;
@@ -54,13 +54,13 @@ public class Application {
     final var branchCommitReader =
         new BranchCommitReader(this.projectDirectory, this.branch, 10, commitOutput);
     branchCommitReader.run();
-    final var pipeline = new Pipeline(pipelineActions, infoOutput);
+    final var pipeline = new CommitPipeline(pipelineActions, infoOutput);
     commitOutput
         .values()
         .forEach(
             commit ->
                 pipelineActions.put(
-                    Action.value(new Pipeline.FetchCommit(this.projectDirectory, commit))));
+                    Action.value(new CommitPipeline.FetchCommit(this.projectDirectory, commit))));
     pipelineActions.put(Action.stop());
     pipeline.run();
 
