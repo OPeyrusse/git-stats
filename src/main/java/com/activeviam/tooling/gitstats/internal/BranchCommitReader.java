@@ -39,7 +39,7 @@ public class BranchCommitReader {
         .forEach(start -> readCommits(start, increment));
   }
 
-  @WithSpan
+  @WithSpan("Read branch commits")
   private void readCommits(final int start, final int increment) {
     Span.current().setAttribute("branch", this.branch);
     Span.current().setAttribute("start-commit", start);

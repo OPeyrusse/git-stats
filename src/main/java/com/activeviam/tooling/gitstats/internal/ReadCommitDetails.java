@@ -8,6 +8,8 @@
 package com.activeviam.tooling.gitstats.internal;
 
 import com.activeviam.tooling.gitstats.internal.Shell.Output;
+import io.opentelemetry.api.trace.Span;
+import io.opentelemetry.instrumentation.annotations.WithSpan;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
@@ -88,7 +90,10 @@ public class ReadCommitDetails {
     }
   }
 
+  @WithSpan("Read commit details")
   public CommitDetails read() {
+    Span.current().setAttribute("commit", this.commit);
+    Span.current().setAttribute("project", this.projectDir.toString());
     final Instant commitDate = readCommitDate();
     final var changes = readFileChanges();
     final var renamings = readFileRenamings();
