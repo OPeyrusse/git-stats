@@ -7,10 +7,10 @@
 
 package com.activeviam.tooling.gitstats;
 
-import com.activeviam.tooling.gitstats.internal.Shell;
-import com.activeviam.tooling.gitstats.internal.Shell.Output;
+import com.activeviam.tooling.gitstats.internal.BranchCommitReader;
 import java.nio.file.Path;
 import java.util.List;
+import java.util.concurrent.LinkedBlockingQueue;
 import java.util.logging.Logger;
 import org.apache.commons.cli.CommandLine;
 import org.apache.commons.cli.DefaultParser;
@@ -28,17 +28,20 @@ public class Application {
 
   private final Path projectDirectory;
   private final Path outputDirectory;
+  private final String branch;
 
-  public Application(final Path projectDirectory, final Path outputDirectory) {
+  public Application(final Path projectDirectory, final Path outputDirectory, String branch) {
     this.projectDirectory = projectDirectory;
     this.outputDirectory = outputDirectory;
+    this.branch = branch;
   }
 
   public void run() {
     // Execute git command
-    final var result =
-        Shell.execute(List.of("git", "status", "--short", "--branch"), this.projectDirectory);
-    System.out.println(Output.readStream(result.stdout()));
+    final var output = new LinkedBlockingQueue<String>(20);
+    final var commitReader = new BranchCommitReader(this.projectDirectory, this.branch, 10, output);
+    commitReader.run();
+    System.out.println("Commits read: " + List.copyOf(output));
   }
 
   public static void main(final String[] args) {
@@ -50,13 +53,17 @@ public class Application {
   private static Options defineCli() {
     final var options = new Options();
 
-    final var exportFolder = new Option("p", "project", true, "Project to scan");
-    exportFolder.setRequired(true);
-    options.addOption(exportFolder);
+    final var projectDir = new Option("p", "project", true, "Project to scan");
+    projectDir.setRequired(true);
+    options.addOption(projectDir);
 
-    final var packagesToScan = new Option("o", "output", true, "Output directory");
-    packagesToScan.setRequired(true);
-    options.addOption(packagesToScan);
+    final var outputPath = new Option("o", "output", true, "Output directory");
+    outputPath.setRequired(true);
+    options.addOption(outputPath);
+
+    final var branch = new Option("b", "branch", true, "Branch to inspect");
+    branch.setRequired(true);
+    options.addOption(branch);
 
     return options;
   }
@@ -75,6 +82,8 @@ public class Application {
     }
 
     return new Application(
-        Path.of(cmd.getOptionValue("project")), Path.of(cmd.getOptionValue("output")));
+        Path.of(cmd.getOptionValue("project")),
+        Path.of(cmd.getOptionValue("output")),
+        cmd.getOptionValue("branch"));
   }
 }
