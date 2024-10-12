@@ -5,9 +5,9 @@
  * reproduction or transfer of this material is strictly prohibited
  */
 
-package com.activeviam.tooling.gitstats.internal;
+package com.activeviam.tooling.gitstats.internal.explorer;
 
-import com.activeviam.tooling.gitstats.internal.Shell.Output;
+import com.activeviam.tooling.gitstats.internal.explorer.Shell.Output;
 import io.opentelemetry.api.trace.Span;
 import io.opentelemetry.instrumentation.annotations.WithSpan;
 import java.io.BufferedReader;

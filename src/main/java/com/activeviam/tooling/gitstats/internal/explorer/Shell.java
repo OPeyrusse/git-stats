@@ -5,7 +5,7 @@
  * reproduction or transfer of this material is strictly prohibited
  */
 
-package com.activeviam.tooling.gitstats.internal;
+package com.activeviam.tooling.gitstats.internal.explorer;
 
 import io.opentelemetry.instrumentation.annotations.SpanAttribute;
 import io.opentelemetry.instrumentation.annotations.WithSpan;

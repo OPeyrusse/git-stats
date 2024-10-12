@@ -5,14 +5,14 @@
  * reproduction or transfer of this material is strictly prohibited
  */
 
-package com.activeviam.tooling.gitstats.internal;
+package com.activeviam.tooling.gitstats.internal.explorer;
 
+import com.activeviam.tooling.gitstats.internal.orchestration.Queue;
 import io.opentelemetry.api.trace.Span;
 import io.opentelemetry.instrumentation.annotations.WithSpan;
 import java.nio.file.Path;
 import java.text.MessageFormat;
 import java.util.List;
-import java.util.concurrent.BlockingQueue;
 import java.util.stream.IntStream;
 
 /**
@@ -23,10 +23,9 @@ public class BranchCommitReader {
   private final Path projectDir;
   private final String branch;
   private final int historySize;
-  private final BlockingQueue<String> output;
+  private final Queue<String> output;
 
-  public BranchCommitReader(
-      Path projectDir, String branch, int historySize, BlockingQueue<String> output) {
+  public BranchCommitReader(Path projectDir, String branch, int historySize, Queue<String> output) {
     this.projectDir = projectDir;
     this.branch = branch;
     this.historySize = historySize;
@@ -51,7 +50,7 @@ public class BranchCommitReader {
     Shell.Output.readStream(output.stdout())
         .lines()
         .map(this::trimCommitLine)
-        .forEach(this.output::add);
+        .forEach(this.output::put);
   }
 
   private String commit(int index) {

@@ -7,9 +7,10 @@
 
 package com.activeviam.tooling.gitstats.internal.writing;
 
-import com.activeviam.tooling.gitstats.internal.ReadCommitDetails.FileChanges;
+import com.activeviam.tooling.gitstats.internal.explorer.ReadCommitDetails.FileChanges;
 import io.opentelemetry.instrumentation.annotations.WithSpan;
 import java.nio.file.Path;
+import java.util.Optional;
 import org.apache.avro.Schema;
 import org.apache.avro.SchemaBuilder;
 import org.apache.avro.generic.GenericData.Record;
@@ -61,7 +62,7 @@ public class FileChangeWriter extends Writer<FileChanges> {
     }
     if (changes.filename().endsWith("pom.xml")) {
       final var filePath = Path.of(changes.filename());
-      return filePath.getParent().toString();
+      return Optional.ofNullable(filePath.getParent()).map(Path::toString).orElse("<root>");
     }
     return "n/a";
   }

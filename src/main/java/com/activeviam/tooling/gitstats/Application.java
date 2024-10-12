@@ -7,8 +7,11 @@
 
 package com.activeviam.tooling.gitstats;
 
-import com.activeviam.tooling.gitstats.internal.BranchCommitReader;
-import com.activeviam.tooling.gitstats.internal.ReadCommitDetails;
+import com.activeviam.tooling.gitstats.internal.explorer.BranchCommitReader;
+import com.activeviam.tooling.gitstats.internal.explorer.ReadCommitDetails.CommitDetails;
+import com.activeviam.tooling.gitstats.internal.orchestration.Pipeline;
+import com.activeviam.tooling.gitstats.internal.orchestration.Pipeline.CommitAction;
+import com.activeviam.tooling.gitstats.internal.orchestration.Queue;
 import com.activeviam.tooling.gitstats.internal.writing.BranchWriter;
 import com.activeviam.tooling.gitstats.internal.writing.FileChangeWriter;
 import com.activeviam.tooling.gitstats.internal.writing.PayloadImpl;
@@ -16,7 +19,6 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
-import java.util.concurrent.LinkedBlockingQueue;
 import java.util.function.Function;
 import java.util.logging.Logger;
 import org.apache.commons.cli.CommandLine;
@@ -45,14 +47,19 @@ public class Application {
 
   public void run() {
     // Execute git command
-    final var output = new LinkedBlockingQueue<String>(20);
-    final var commitReader = new BranchCommitReader(this.projectDirectory, this.branch, 10, output);
-    commitReader.run();
-    System.out.println("Commits read: " + List.copyOf(output));
-    final var infoReader = new ReadCommitDetails(this.projectDirectory, output.peek());
-    final var info = infoReader.read();
-    System.out.println("First commit info");
-    System.out.println("Date: " + info.date());
+    final var commitOutput = new Queue<String>(20);
+    final var infoOutput = new Queue<CommitDetails>(20);
+    final var pipelineActions = new Queue<CommitAction>(20);
+    final var branchCommitReader =
+        new BranchCommitReader(this.projectDirectory, this.branch, 10, commitOutput);
+    branchCommitReader.run();
+    final var pipeline = new Pipeline(pipelineActions, infoOutput);
+    commitOutput
+        .values()
+        .forEach(
+            commit -> pipelineActions.put(new Pipeline.FetchCommit(this.projectDirectory, commit)));
+    pipelineActions.put(new Pipeline.EndAction());
+    pipeline.run();
 
     // Write to output
     try {
@@ -65,13 +72,17 @@ public class Application {
         new BranchWriter(
             this.outputDirectory.resolve("branch.parquet"),
             this.branch,
-            new PayloadImpl<>(List.copyOf(output), Function.identity()));
+            new PayloadImpl<>(List.copyOf(commitOutput.values()), Function.identity()));
     branchWriter.write();
 
     final var commitWriter =
         new FileChangeWriter(
             this.branch,
-            new PayloadImpl<>(List.copyOf(info.fileChanges()), Function.identity()),
+            new PayloadImpl<>(
+                infoOutput.values().stream()
+                    .flatMap(details -> details.fileChanges().stream())
+                    .toList(),
+                Function.identity()),
             this.outputDirectory.resolve("files.parquet"));
     commitWriter.write();
   }
