@@ -25,6 +25,7 @@ public class Shell {
     // Execute the command
     final var builder = new ProcessBuilder(command);
     builder.directory(workingDirectory.toFile());
+    builder.environment().put("LANG", "LC_ALL");
     Process process;
     try {
       process = builder.start();

@@ -24,7 +24,6 @@ public class BranchCommitReader {
   private final String branch;
   private final int historySize;
   private final BlockingQueue<String> output;
-  private int step;
 
   public BranchCommitReader(
       Path projectDir, String branch, int historySize, BlockingQueue<String> output) {
@@ -32,7 +31,6 @@ public class BranchCommitReader {
     this.branch = branch;
     this.historySize = historySize;
     this.output = output;
-    this.step = 0;
   }
 
   public void run() {

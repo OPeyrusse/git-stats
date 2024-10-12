@@ -8,6 +8,7 @@
 package com.activeviam.tooling.gitstats;
 
 import com.activeviam.tooling.gitstats.internal.BranchCommitReader;
+import com.activeviam.tooling.gitstats.internal.ReadCommitDetails;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.concurrent.LinkedBlockingQueue;
@@ -42,6 +43,12 @@ public class Application {
     final var commitReader = new BranchCommitReader(this.projectDirectory, this.branch, 10, output);
     commitReader.run();
     System.out.println("Commits read: " + List.copyOf(output));
+    final var infoReader = new ReadCommitDetails(this.projectDirectory, output.peek());
+    final var info = infoReader.read();
+    System.out.println("First commit info");
+    System.out.println("Date: " + info.date());
+    System.out.println("Changes: " + info.fileChanges());
+    System.out.println("Renamed: " + info.fileRenamings());
   }
 
   public static void main(final String[] args) {
