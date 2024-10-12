@@ -12,15 +12,18 @@
 
   <properties>
     <maven.compiler.release>23</maven.compiler.release>
-    <lombok.version>1.18.12</lombok.version>
   </properties>
 
   <dependencies>
     <dependency>
-      <groupId>org.projectlombok</groupId>
-      <artifactId>lombok</artifactId>
-      <version>${lombok.version}</version>
-      <scope>provided</scope>
+      <groupId>io.opentelemetry</groupId>
+      <artifactId>opentelemetry-api</artifactId>
+      <version>1.37.0</version>
+    </dependency>
+    <dependency>
+      <groupId>io.opentelemetry.instrumentation</groupId>
+      <artifactId>opentelemetry-instrumentation-annotations</artifactId>
+      <version>2.6.0</version>
     </dependency>
     <dependency>
       <groupId>commons-cli</groupId>
@@ -58,31 +61,23 @@
       <plugins>
         <plugin>
           <groupId>org.apache.maven.plugins</groupId>
+          <artifactId>maven-install-plugin</artifactId>
+          <executions>
+            <execution>
+              <id>default-install</id>
+              <phase>none</phase>
+            </execution>
+          </executions>
+        </plugin>
+        <plugin>
+          <groupId>org.apache.maven.plugins</groupId>
           <artifactId>maven-deploy-plugin</artifactId>
           <version>3.1.1</version>
           <configuration>
             <skip>true</skip>
           </configuration>
         </plugin>
-        <plugin>
-          <groupId>org.apache.maven.plugins</groupId>
-          <artifactId>maven-compiler-plugin</artifactId>
-          <executions>
-            <execution>
-              <id>default-compile</id>
-              <phase>compile</phase>
-              <configuration>
-                <annotationProcessorPaths>
-                  <annotationProcessorPath>
-                    <groupId>org.projectlombok</groupId>
-                    <artifactId>lombok</artifactId>
-                    <version>${lombok.version}</version>
-                  </annotationProcessorPath>
-                </annotationProcessorPaths>
-              </configuration>
-            </execution>
-          </executions>
-        </plugin>
+
         <plugin>
           <groupId>org.apache.maven.plugins</groupId>
           <artifactId>maven-resources-plugin</artifactId>
@@ -93,18 +88,6 @@
         <plugin>
           <groupId>org.apache.maven.plugins</groupId>
           <artifactId>maven-checkstyle-plugin</artifactId>
-        </plugin>
-
-        <plugin>
-          <groupId>org.projectlombok</groupId>
-          <artifactId>lombok-maven-plugin</artifactId>
-          <dependencies>
-            <dependency>
-              <groupId>org.projectlombok</groupId>
-              <artifactId>lombok</artifactId>
-              <version>${lombok.version}</version>
-            </dependency>
-          </dependencies>
         </plugin>
 
         <!-- Plugin to format code -->
