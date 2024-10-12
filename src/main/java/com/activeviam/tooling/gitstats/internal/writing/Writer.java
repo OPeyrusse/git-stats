@@ -9,13 +9,13 @@ package com.activeviam.tooling.gitstats.internal.writing;
 
 import io.opentelemetry.api.trace.Span;
 import java.io.IOException;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import org.apache.avro.Schema;
 import org.apache.avro.generic.GenericData;
 import org.apache.avro.generic.GenericData.Record;
 import org.apache.avro.generic.GenericRecord;
 import org.apache.hadoop.conf.Configuration;
-import org.apache.hadoop.fs.FileSystem;
 import org.apache.parquet.avro.AvroParquetWriter;
 import org.apache.parquet.hadoop.ParquetWriter;
 import org.apache.parquet.hadoop.util.HadoopOutputFile;
@@ -35,6 +35,11 @@ public abstract class Writer<T> {
 
   protected final void writeToFile() {
     Span.current().setAttribute("outputFile", this.outputFile.toString());
+    try {
+      Files.deleteIfExists(this.outputFile);
+    } catch (final IOException e) {
+      throw new RuntimeException("Failed to delete the target file", e);
+    }
     try (final var writer = createWriter()) {
       this.data
           .toStream()
@@ -58,9 +63,8 @@ public abstract class Writer<T> {
   private ParquetWriter<GenericRecord> createWriter() {
     final var config = new Configuration();
     final var path = new org.apache.hadoop.fs.Path(this.outputFile.toString());
-    try (final FileSystem fs = FileSystem.get(config)) {
-      final var fsPath = fs.resolvePath(path);
-      final HadoopOutputFile hadoopOutputFile = HadoopOutputFile.fromPath(fsPath, config);
+    try {
+      final HadoopOutputFile hadoopOutputFile = HadoopOutputFile.fromPath(path, config);
       return AvroParquetWriter.<GenericRecord>builder(hadoopOutputFile)
           .withSchema(createSchema())
           .build();
@@ -68,24 +72,6 @@ public abstract class Writer<T> {
       throw new RuntimeException("Cannot create Parquet writer", e);
     }
   }
-
-  /*
-    private org.apache.hadoop.mapreduce.RecordWriter<Void, T> createWriter() {
-      final var config = new Configuration();
-      final var path = new org.apache.hadoop.fs.Path(this.outputFile.toString());
-      final var schema = createSchema();
-      try {
-        return new ParquetOutputFormat<Record>(
-            new AvroWriteSupport<>(
-                new AvroSchemaConverter(config).convert(schema), schema, SpecificData.get()))
-            .getRecordWriter(config, path, CompressionCodecName.UNCOMPRESSED, Mode.CREATE);
-      } catch (IOException e) {
-        throw new RuntimeException("Failed to create parquet writer", e);
-      } catch (InterruptedException e) {
-        throw new RuntimeException("Interrupted while creating a parquet writer", e);
-      }
-    }
-  */
 
   protected abstract Schema createSchema();
 }

@@ -30,14 +30,8 @@ public class BranchWriter extends Writer<String> {
     return SchemaBuilder.record("Commit")
         .namespace("com.activeviam.tooling.gitstats")
         .fields()
-        .name("branch")
-        .type()
-        .stringType()
-        .noDefault()
-        .name("commit")
-        .type()
-        .stringType()
-        .noDefault()
+        .requiredString("branch")
+        .requiredString("commit")
         .endRecord();
   }
 

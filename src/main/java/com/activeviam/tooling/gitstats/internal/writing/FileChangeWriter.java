@@ -31,14 +31,12 @@ public class FileChangeWriter extends Writer<FileChanges> {
     return SchemaBuilder.record("Commit")
         .namespace("com.activeviam.tooling.gitstats")
         .fields()
-        .name("branch")
-        .type()
-        .stringType()
-        .noDefault()
-        .name("commit")
-        .type()
-        .stringType()
-        .noDefault()
+        .requiredString("commit")
+        .requiredString("module")
+        .requiredString("filename")
+        .requiredString("path")
+        .requiredLong("additions")
+        .requiredLong("deletions")
         .endRecord();
   }
 

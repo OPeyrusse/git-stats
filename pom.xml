@@ -11,7 +11,7 @@
   <name>API mapping</name>
 
   <properties>
-    <maven.compiler.release>23</maven.compiler.release>
+    <maven.compiler.release>22</maven.compiler.release>
   </properties>
 
   <dependencies>
@@ -48,6 +48,11 @@
     <dependency>
       <groupId>org.apache.hadoop</groupId>
       <artifactId>hadoop-hdfs</artifactId>
+      <version>3.4.0</version>
+    </dependency>
+    <dependency>
+      <groupId>org.apache.hadoop</groupId>
+      <artifactId>hadoop-mapreduce-client-core</artifactId>
       <version>3.4.0</version>
     </dependency>
     <dependency>
