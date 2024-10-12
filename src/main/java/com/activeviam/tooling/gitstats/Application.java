@@ -9,8 +9,9 @@ package com.activeviam.tooling.gitstats;
 
 import com.activeviam.tooling.gitstats.internal.explorer.BranchCommitReader;
 import com.activeviam.tooling.gitstats.internal.explorer.ReadCommitDetails.CommitDetails;
+import com.activeviam.tooling.gitstats.internal.orchestration.Action;
 import com.activeviam.tooling.gitstats.internal.orchestration.Pipeline;
-import com.activeviam.tooling.gitstats.internal.orchestration.Pipeline.CommitAction;
+import com.activeviam.tooling.gitstats.internal.orchestration.Pipeline.FetchCommit;
 import com.activeviam.tooling.gitstats.internal.orchestration.Queue;
 import com.activeviam.tooling.gitstats.internal.writing.BranchWriter;
 import com.activeviam.tooling.gitstats.internal.writing.FileChangeWriter;
@@ -48,8 +49,8 @@ public class Application {
   public void run() {
     // Execute git command
     final var commitOutput = new Queue<String>(20);
-    final var infoOutput = new Queue<CommitDetails>(20);
-    final var pipelineActions = new Queue<CommitAction>(20);
+    final var infoOutput = new Queue<Action<CommitDetails>>(20);
+    final var pipelineActions = new Queue<Action<FetchCommit>>(20);
     final var branchCommitReader =
         new BranchCommitReader(this.projectDirectory, this.branch, 10, commitOutput);
     branchCommitReader.run();
@@ -57,8 +58,10 @@ public class Application {
     commitOutput
         .values()
         .forEach(
-            commit -> pipelineActions.put(new Pipeline.FetchCommit(this.projectDirectory, commit)));
-    pipelineActions.put(new Pipeline.EndAction());
+            commit ->
+                pipelineActions.put(
+                    Action.value(new Pipeline.FetchCommit(this.projectDirectory, commit))));
+    pipelineActions.put(Action.stop());
     pipeline.run();
 
     // Write to output
@@ -80,6 +83,7 @@ public class Application {
             this.branch,
             new PayloadImpl<>(
                 infoOutput.values().stream()
+                    .flatMap(Action::unpack)
                     .flatMap(details -> details.fileChanges().stream())
                     .toList(),
                 Function.identity()),

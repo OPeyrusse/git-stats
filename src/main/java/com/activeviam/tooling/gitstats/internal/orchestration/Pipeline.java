@@ -9,6 +9,8 @@ package com.activeviam.tooling.gitstats.internal.orchestration;
 
 import com.activeviam.tooling.gitstats.internal.explorer.ReadCommitDetails;
 import com.activeviam.tooling.gitstats.internal.explorer.ReadCommitDetails.CommitDetails;
+import com.activeviam.tooling.gitstats.internal.orchestration.Action.Stop;
+import com.activeviam.tooling.gitstats.internal.orchestration.Action.Value;
 import java.nio.file.Path;
 
 /**
@@ -16,10 +18,10 @@ import java.nio.file.Path;
  */
 public class Pipeline {
 
-  private final Queue<CommitAction> commitQueue;
-  private final Queue<CommitDetails> infoQueue;
+  private final Queue<Action<FetchCommit>> commitQueue;
+  private final Queue<Action<CommitDetails>> infoQueue;
 
-  public Pipeline(final Queue<CommitAction> commitQueue, final Queue<CommitDetails> infoQueue) {
+  public Pipeline(Queue<Action<FetchCommit>> commitQueue, Queue<Action<CommitDetails>> infoQueue) {
     this.commitQueue = commitQueue;
     this.infoQueue = infoQueue;
   }
@@ -28,19 +30,18 @@ public class Pipeline {
     while (true) {
         final var action = this.commitQueue.take();
         switch (action) {
-          case FetchCommit(final var gitDir, final var commit) -> {
+          case Value(FetchCommit(final var gitDir, final var commit)) -> {
             final var infoReader = new ReadCommitDetails(gitDir, commit);
             final var info = infoReader.read();
-            this.infoQueue.put(info);
+            this.infoQueue.put(Action.value(info));
           }
-          case EndAction _ -> {return;}
+          case Stop _ -> {
+            this.infoQueue.put(Action.stop());
+            return;
+        }
         }
         }
   }
 
-  public sealed interface CommitAction permits FetchCommit, EndAction {}
-
-  public record FetchCommit(Path gitDir, String commit) implements CommitAction {}
-
-  public record EndAction() implements CommitAction {}
+  public record FetchCommit(Path gitDir, String commit)  {}
 }
