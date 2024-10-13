@@ -32,11 +32,11 @@ public class Shell {
       if (process.exitValue() != 0) {
         logger.severe("Output " + Output.readStream(process.getInputStream()));
         logger.severe("Error " + Output.readStream(process.getErrorStream()));
-        throw new RuntimeException("Command failed with exit status " + process.exitValue());
+        throw new RuntimeException("Command "+command+" failed with exit status " + process.exitValue());
       }
     } catch (InterruptedException e) {
       Thread.currentThread().interrupt();
-      throw new RuntimeException("Operation interrupted", e);
+      throw new RuntimeException("Command "+command+" interrupted", e);
     }
     return new Output(process.getInputStream(), process.getErrorStream());
   }
