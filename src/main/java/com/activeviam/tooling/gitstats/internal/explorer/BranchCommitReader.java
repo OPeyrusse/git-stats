@@ -64,7 +64,6 @@ public class BranchCommitReader {
             this.projectDir);
     Shell.Output.readStream(output.stdout())
         .lines()
-        .map(this::trimCommitLine)
         .filter(Predicate.not(getCommitsToIgnore()::contains))
         .map(Action::value)
         .forEach(this.output::put);
@@ -81,10 +80,6 @@ public class BranchCommitReader {
   private String resolveStartCommit() {
     val output = Shell.execute(List.of("git", "rev-parse", this.startCommit), this.projectDir);
     return Shell.Output.readStream(output.stdout()).trim();
-  }
-
-  private String trimCommitLine(final String line) {
-    return line.replaceFirst("\\s*\\+\\s*", "");
   }
 
   private Set<String> readCommitsToIgnore() {
