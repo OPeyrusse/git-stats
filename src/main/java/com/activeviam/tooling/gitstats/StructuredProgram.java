@@ -69,17 +69,14 @@ public class StructuredProgram {
 
   private void processCommits(final Queue<Action<String>> input, final Queue<Action<CommitDetails>> output) {
     Threading.execute(scope -> {
-      val semaphore = new Semaphore(20);
       String lastCommit = null;
       while (true) {
         val action = input.take();
         switch (action) {
           case Value(final var commit) -> {
             lastCommit = commit;
-            semaphore.acquire();
             Threading.submit(scope, () -> {
               fetchCommit(output, commit);
-              semaphore.release();
             });
           }
           case Action.Stop<?> _ -> {
@@ -103,7 +100,6 @@ public class StructuredProgram {
 
   private void processDetails(Queue<Action<CommitDetails>> input) {
     Threading.execute(scope -> {
-      val semaphore = new Semaphore(20);
       val counter = new AtomicInteger(0);
       val changeAccumulator = new Buffer<CommitDetails>(2000);
       val renamingAccumulator = new Buffer<CommitDetails>( 5000);
@@ -114,32 +110,24 @@ public class StructuredProgram {
           case Value(final var details) -> {
             changeAccumulator.add(details, details.fileChanges().size());
             if (changeAccumulator.hasEnough()) {
-              semaphore.acquire();
               Threading.submit(scope, () -> {
                 writeChanges(changeAccumulator.drain(), counter.incrementAndGet());
-                semaphore.release();
               });
             }
             renamingAccumulator.add(details, details.fileRenamings().size());
             if (renamingAccumulator.hasEnough()) {
-              semaphore.acquire();
               Threading.submit(scope, () -> {
                 writeRenamings(renamingAccumulator.drain(), counter.incrementAndGet());
-                semaphore.release();
               });
             }
             commitAccumulator.add(details.commit(), 1);
             if (commitAccumulator.hasEnough()) {
               val commits = commitAccumulator.drain();
-              semaphore.acquire();
               Threading.submit(scope, () -> {
                 writeCommits(commits, counter.incrementAndGet());
-                semaphore.release();
               });
-              semaphore.acquire();
               Threading.submit(scope, () -> {
                 writeBranch(commits, counter.incrementAndGet());
-                semaphore.release();
               });
             }
           }
