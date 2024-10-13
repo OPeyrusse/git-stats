@@ -38,6 +38,7 @@ public class BranchCommitReader {
     final var increment = 100;
     IntStream.iterate(0, i -> i < this.historySize, i -> i + increment)
         .forEach(start -> readCommits(start, increment));
+    this.output.put(Action.stop());
   }
 
   @WithSpan("Read branch commits")
@@ -54,7 +55,6 @@ public class BranchCommitReader {
         .map(this::trimCommitLine)
         .map(Action::value)
         .forEach(this.output::put);
-    this.output.put(Action.stop());
   }
 
   private String commit(int index) {
