@@ -10,7 +10,10 @@ package com.activeviam.tooling.gitstats.internal.writing;
 import com.activeviam.tooling.gitstats.internal.explorer.ReadCommitDetails.FileChanges;
 import io.opentelemetry.instrumentation.annotations.WithSpan;
 import java.nio.file.Path;
+import java.util.Map;
 import java.util.Optional;
+import java.util.regex.Pattern;
+import lombok.val;
 import org.apache.avro.Schema;
 import org.apache.avro.SchemaBuilder;
 import org.apache.avro.generic.GenericData.Record;
@@ -18,18 +21,15 @@ import org.apache.avro.generic.GenericData.Record;
 /**
  * @author ActiveViam
  */
-public class FileChangeWriter extends Writer<FileChanges> {
+public class FileChangeWriter extends Writer<Map.Entry<String, FileChanges>> {
 
-  private final String commit;
-
-  public FileChangeWriter(String commit, Payload<FileChanges> data, Path outputFile) {
+  public FileChangeWriter(Payload<Map.Entry<String, FileChanges>> data, Path outputFile) {
     super(outputFile, data);
-    this.commit = commit;
   }
 
   @Override
   protected Schema createSchema() {
-    return SchemaBuilder.record("Commit")
+    return SchemaBuilder.record("FileChange")
         .namespace("com.activeviam.tooling.gitstats")
         .fields()
         .requiredString("commit")
@@ -42,7 +42,9 @@ public class FileChangeWriter extends Writer<FileChanges> {
   }
 
   @Override
-  protected void fillRecord(Record record, FileChanges changes) {
+  protected void fillRecord(Record record, Map.Entry<String, FileChanges> entry) {
+    val changes = entry.getValue();
+    val commit = entry.getKey();
     record.put("commit", commit);
     record.put("path", changes.filename());
     record.put("module", computeModule(changes));
@@ -51,14 +53,12 @@ public class FileChangeWriter extends Writer<FileChanges> {
     record.put("deletions", changes.deletions());
   }
 
+  private static final Pattern SOURCE_PATTERN = Pattern.compile("^(.*)/src/(main|test|generated)/");
+
   private static String computeModule(FileChanges changes) {
-    final var mainSrcIndex = changes.filename().indexOf("/src/main");
-    if (mainSrcIndex >= 0) {
-      return changes.filename().substring(mainSrcIndex);
-    }
-    final var testSrcIndex = changes.filename().indexOf("/src/test");
-    if (testSrcIndex >= 0) {
-      return changes.filename().substring(testSrcIndex);
+    val matcher = SOURCE_PATTERN.matcher(changes.filename());
+    if (matcher.find()) {
+      return matcher.group(1);
     }
     if (changes.filename().endsWith("pom.xml")) {
       final var filePath = Path.of(changes.filename());

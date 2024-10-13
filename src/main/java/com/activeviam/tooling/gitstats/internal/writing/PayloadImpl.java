@@ -9,23 +9,30 @@ package com.activeviam.tooling.gitstats.internal.writing;
 
 import java.util.Collection;
 import java.util.function.Function;
+import java.util.function.Supplier;
 import java.util.stream.Stream;
+import lombok.AccessLevel;
+import lombok.RequiredArgsConstructor;
 
 /**
  * @author ActiveViam
  */
-public class PayloadImpl<T, U> implements Payload<U> {
+@RequiredArgsConstructor(access = AccessLevel.PRIVATE)
+public class PayloadImpl<U> implements Payload<U> {
 
-  private final Collection<T> data;
-  private final Function<T, U> mapper;
+  private final Supplier<Stream<U>> streamBuilder;
 
-  public PayloadImpl(Collection<T> data, Function<T, U> mapper) {
-    this.data = data;
-    this.mapper = mapper;
+  public static <T, U> PayloadImpl<U> mapping(Collection<T> data, Function<T, U> mapper) {
+    return new PayloadImpl<>(() -> data.stream().map(mapper));
+  }
+
+  public static <T, U> PayloadImpl<U> streaming(
+      Collection<T> data, Function<Stream<T>, Stream<U>> mapper) {
+    return new PayloadImpl<>(() -> mapper.apply(data.stream()));
   }
 
   @Override
   public Stream<U> toStream() {
-    return data.stream().map(mapper);
+    return streamBuilder.get();
   }
 }

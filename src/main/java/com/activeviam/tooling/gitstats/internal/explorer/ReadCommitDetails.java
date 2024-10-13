@@ -97,14 +97,13 @@ public class ReadCommitDetails {
     final Instant commitDate = readCommitDate();
     final var changes = readFileChanges();
     final var renamings = readFileRenamings();
-    return new CommitDetails(this.commit, commitDate, changes, renamings);
+    return new CommitDetails(new CommitInfo(this.commit, commitDate), changes, renamings);
   }
 
   public record CommitDetails(
-      String commit,
-      Instant date,
-      List<FileChanges> fileChanges,
-      List<FileRenaming> fileRenamings) {}
+      CommitInfo commit, List<FileChanges> fileChanges, List<FileRenaming> fileRenamings) {}
+
+  public record CommitInfo(String sha1, Instant date) {}
 
   public record FileChanges(String filename, int additions, int deletions) {}
 

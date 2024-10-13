@@ -13,15 +13,19 @@ import com.activeviam.tooling.gitstats.internal.orchestration.Action;
 import com.activeviam.tooling.gitstats.internal.orchestration.CommitPipeline;
 import com.activeviam.tooling.gitstats.internal.orchestration.CommitPipeline.FetchCommit;
 import com.activeviam.tooling.gitstats.internal.orchestration.Queue;
+import com.activeviam.tooling.gitstats.internal.orchestration.WriteDispacher;
 import com.activeviam.tooling.gitstats.internal.writing.BranchWriter;
+import com.activeviam.tooling.gitstats.internal.writing.CommitWriter;
 import com.activeviam.tooling.gitstats.internal.writing.FileChangeWriter;
 import com.activeviam.tooling.gitstats.internal.writing.PayloadImpl;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
+import java.util.Map;
 import java.util.function.Function;
 import java.util.logging.Logger;
+import lombok.val;
 import org.apache.commons.cli.CommandLine;
 import org.apache.commons.cli.DefaultParser;
 import org.apache.commons.cli.HelpFormatter;
@@ -55,6 +59,10 @@ public class Application {
         new BranchCommitReader(this.projectDirectory, this.branch, 10, commitOutput);
     branchCommitReader.run();
     final var pipeline = new CommitPipeline(pipelineActions, infoOutput);
+    val changeQueue = new Queue<Action<WriteDispacher.WriteChangesAction>>(100);
+    val renamingQueue = new Queue<Action<WriteDispacher.WriteRenamingAction>>(100);
+    val commitQueue = new Queue<Action<WriteDispacher.WriteCommits>>(100);
+    val writeDispatcher = new WriteDispacher(infoOutput, changeQueue, renamingQueue, commitQueue);
     commitOutput
         .values()
         .forEach(
@@ -63,6 +71,8 @@ public class Application {
                     Action.value(new CommitPipeline.FetchCommit(this.projectDirectory, commit))));
     pipelineActions.put(Action.stop());
     pipeline.run();
+
+    writeDispatcher.run();
 
     // Write to output
     try {
@@ -75,20 +85,30 @@ public class Application {
         new BranchWriter(
             this.outputDirectory.resolve("branch.parquet"),
             this.branch,
-            new PayloadImpl<>(List.copyOf(commitOutput.values()), Function.identity()));
+            PayloadImpl.mapping(List.copyOf(commitOutput.values()), Function.identity()));
     branchWriter.write();
 
     final var commitWriter =
-        new FileChangeWriter(
-            this.branch,
-            new PayloadImpl<>(
-                infoOutput.values().stream()
-                    .flatMap(Action::unpack)
-                    .flatMap(details -> details.fileChanges().stream())
-                    .toList(),
-                Function.identity()),
-            this.outputDirectory.resolve("files.parquet"));
+        new CommitWriter(
+            this.outputDirectory.resolve("commits.parquet"),
+            PayloadImpl.streaming(
+                commitQueue.values(),
+                s -> s.flatMap(Action::unpack).flatMap(details -> details.commits().stream())));
     commitWriter.write();
+
+    final var changeWriter =
+        new FileChangeWriter(
+            PayloadImpl.streaming(
+                changeQueue.values(),
+                s ->
+                    s.flatMap(Action::unpack)
+                        .flatMap(details -> details.commits().stream())
+                        .flatMap(
+                            details ->
+                                details.fileChanges().stream()
+                                    .map(change -> Map.entry(details.commit().sha1(), change)))),
+            this.outputDirectory.resolve("files.parquet"));
+    changeWriter.write();
   }
 
   public static void main(final String[] args) {
