@@ -18,6 +18,7 @@ import java.time.Instant;
 import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import lombok.val;
 
@@ -49,7 +50,13 @@ public class ReadCommitDetails {
 
     final List<FileChanges> fileChanges;
     try (final var reader = new BufferedReader(new InputStreamReader(process.getInputStream()))) {
-      fileChanges = reader.lines().skip(1).map(this::parseFileChange).collect(Collectors.toList());
+      fileChanges =
+          reader
+              .lines()
+              .skip(1)
+              .filter(Predicate.not(String::isBlank))
+              .map(this::parseFileChange)
+              .collect(Collectors.toList());
     } catch (final IOException e) {
       throw new IllegalStateException("Cannot read git output for file changes", e);
     }
