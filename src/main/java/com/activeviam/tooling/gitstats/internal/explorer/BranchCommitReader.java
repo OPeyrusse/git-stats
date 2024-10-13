@@ -7,6 +7,7 @@
 
 package com.activeviam.tooling.gitstats.internal.explorer;
 
+import com.activeviam.tooling.gitstats.internal.orchestration.Action;
 import com.activeviam.tooling.gitstats.internal.orchestration.Queue;
 import io.opentelemetry.api.trace.Span;
 import io.opentelemetry.instrumentation.annotations.WithSpan;
@@ -23,9 +24,10 @@ public class BranchCommitReader {
   private final Path projectDir;
   private final String branch;
   private final int historySize;
-  private final Queue<String> output;
+  private final Queue<Action<String>> output;
 
-  public BranchCommitReader(Path projectDir, String branch, int historySize, Queue<String> output) {
+  public BranchCommitReader(
+      Path projectDir, String branch, int historySize, Queue<Action<String>> output) {
     this.projectDir = projectDir;
     this.branch = branch;
     this.historySize = historySize;
@@ -50,7 +52,9 @@ public class BranchCommitReader {
     Shell.Output.readStream(output.stdout())
         .lines()
         .map(this::trimCommitLine)
+        .map(Action::value)
         .forEach(this.output::put);
+    this.output.put(Action.stop());
   }
 
   private String commit(int index) {

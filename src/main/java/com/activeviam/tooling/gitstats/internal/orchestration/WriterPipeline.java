@@ -9,14 +9,10 @@ package com.activeviam.tooling.gitstats.internal.orchestration;
 
 import com.activeviam.tooling.gitstats.internal.orchestration.Action.Stop;
 import com.activeviam.tooling.gitstats.internal.orchestration.Action.Value;
-import com.activeviam.tooling.gitstats.internal.orchestration.WriteDispacher.WriteChangesAction;
-import com.activeviam.tooling.gitstats.internal.writing.FileChangeWriter;
-import com.activeviam.tooling.gitstats.internal.writing.PayloadImpl;
 import io.opentelemetry.api.trace.Span;
 import io.opentelemetry.instrumentation.annotations.WithSpan;
-import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.Map;
+import java.util.concurrent.atomic.AtomicBoolean;
 import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
 import lombok.val;
@@ -27,6 +23,7 @@ import lombok.val;
 @RequiredArgsConstructor(access = AccessLevel.PROTECTED)
 public abstract class WriterPipeline<T> {
 
+  private final AtomicBoolean started = new AtomicBoolean(false);
   private final Queue<Action<T>> queue;
   private final Path outputDirectory;
   private final String filePattern;
@@ -34,6 +31,10 @@ public abstract class WriterPipeline<T> {
 
   @WithSpan("Write commit stream")
   protected final void doRun() {
+    if (!this.started.compareAndSet(false, true)) {
+      throw new IllegalStateException("Pipeline already started");
+    }
+    try {
     while (true) {
       final var action = this.queue.take();
       switch (action) {
@@ -47,6 +48,9 @@ public abstract class WriterPipeline<T> {
           return;
         }
       }
+    }
+    } finally {
+      this.started.set(false);
     }
   }
 

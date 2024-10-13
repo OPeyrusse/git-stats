@@ -18,7 +18,7 @@ import lombok.RequiredArgsConstructor;
  * @author ActiveViam
  */
 @RequiredArgsConstructor
-public class CommitPipeline {
+public class FetchCommitPipeline {
 
   private final Queue<Action<FetchCommit>> commitQueue;
   private final Queue<Action<CommitDetails>> infoQueue;

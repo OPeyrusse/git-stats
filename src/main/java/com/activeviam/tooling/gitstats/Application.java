@@ -10,20 +10,22 @@ package com.activeviam.tooling.gitstats;
 import com.activeviam.tooling.gitstats.internal.explorer.BranchCommitReader;
 import com.activeviam.tooling.gitstats.internal.explorer.ReadCommitDetails.CommitDetails;
 import com.activeviam.tooling.gitstats.internal.orchestration.Action;
-import com.activeviam.tooling.gitstats.internal.orchestration.CommitPipeline;
-import com.activeviam.tooling.gitstats.internal.orchestration.CommitPipeline.FetchCommit;
+import com.activeviam.tooling.gitstats.internal.orchestration.BranchWritePipeline;
+import com.activeviam.tooling.gitstats.internal.orchestration.ChangeWriterPipeline;
+import com.activeviam.tooling.gitstats.internal.orchestration.CommitWritePipeline;
+import com.activeviam.tooling.gitstats.internal.orchestration.FetchCommitPipeline;
+import com.activeviam.tooling.gitstats.internal.orchestration.FetchCommitPipeline.FetchCommit;
+import com.activeviam.tooling.gitstats.internal.orchestration.Multiplexer;
 import com.activeviam.tooling.gitstats.internal.orchestration.Queue;
+import com.activeviam.tooling.gitstats.internal.orchestration.ReadCommitPipeline;
+import com.activeviam.tooling.gitstats.internal.orchestration.RenameWriterPipeline;
 import com.activeviam.tooling.gitstats.internal.orchestration.WriteDispacher;
-import com.activeviam.tooling.gitstats.internal.writing.BranchWriter;
-import com.activeviam.tooling.gitstats.internal.writing.CommitWriter;
-import com.activeviam.tooling.gitstats.internal.writing.FileChangeWriter;
-import com.activeviam.tooling.gitstats.internal.writing.PayloadImpl;
+import com.activeviam.tooling.gitstats.internal.orchestration.WriteDispacher.WriteCommits;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
-import java.util.Map;
-import java.util.function.Function;
+import java.util.concurrent.StructuredTaskScope;
 import java.util.logging.Logger;
 import lombok.val;
 import org.apache.commons.cli.CommandLine;
@@ -50,65 +52,78 @@ public class Application {
     this.branch = branch;
   }
 
+  private <T> Queue<Action<T>> queueOf(final int capacity) {
+    return new Queue<>(capacity);
+  }
+
+  private static void submit(final StructuredTaskScope<?> scope, final Runnable task) {
+    scope.fork(
+        () -> {
+          try {
+            task.run();
+            return null;
+          } catch (Exception e) {
+            throw new RuntimeException("Failed to run task", e);
+          }
+        });
+  }
+
   public void run() {
-    // Execute git command
-    final var commitOutput = new Queue<String>(20);
-    final var infoOutput = new Queue<Action<CommitDetails>>(20);
-    final var pipelineActions = new Queue<Action<FetchCommit>>(20);
-    final var branchCommitReader =
-        new BranchCommitReader(this.projectDirectory, this.branch, 10, commitOutput);
-    branchCommitReader.run();
-    final var pipeline = new CommitPipeline(pipelineActions, infoOutput);
-    val changeQueue = new Queue<Action<WriteDispacher.WriteChangesAction>>(100);
-    val renamingQueue = new Queue<Action<WriteDispacher.WriteRenamingAction>>(100);
-    val commitQueue = new Queue<Action<WriteDispacher.WriteCommits>>(100);
-    val writeDispatcher = new WriteDispacher(infoOutput, changeQueue, renamingQueue, commitQueue);
-    commitOutput
-        .values()
-        .forEach(
-            commit ->
-                pipelineActions.put(
-                    Action.value(new CommitPipeline.FetchCommit(this.projectDirectory, commit))));
-    pipelineActions.put(Action.stop());
-    pipeline.run();
-
-    writeDispatcher.run();
-
-    // Write to output
     try {
       Files.createDirectories(this.outputDirectory);
     } catch (IOException e) {
       throw new RuntimeException("Failed to create output directory", e);
     }
 
-    final var branchWriter =
-        new BranchWriter(
-            this.outputDirectory.resolve("branch.parquet"),
-            this.branch,
-            PayloadImpl.mapping(List.copyOf(commitOutput.values()), Function.identity()));
-    branchWriter.write();
+    try (var scope = new StructuredTaskScope<>()) {
+      final var commitOutput = this.<String>queueOf(20);
+      val branchCommitReader =
+          new BranchCommitReader(this.projectDirectory, this.branch, 10, commitOutput);
+      submit(scope, branchCommitReader::run);
 
-    final var commitWriter =
-        new CommitWriter(
-            this.outputDirectory.resolve("commits.parquet"),
-            PayloadImpl.streaming(
-                commitQueue.values(),
-                s -> s.flatMap(Action::unpack).flatMap(details -> details.commits().stream())));
-    commitWriter.write();
+      final var pipelineActions = this.<FetchCommit>queueOf(20);
+      val commitTransformer =
+          new ReadCommitPipeline(this.projectDirectory, commitOutput, pipelineActions);
+      submit(scope, commitTransformer::run);
 
-    final var changeWriter =
-        new FileChangeWriter(
-            PayloadImpl.streaming(
-                changeQueue.values(),
-                s ->
-                    s.flatMap(Action::unpack)
-                        .flatMap(details -> details.commits().stream())
-                        .flatMap(
-                            details ->
-                                details.fileChanges().stream()
-                                    .map(change -> Map.entry(details.commit().sha1(), change)))),
-            this.outputDirectory.resolve("files.parquet"));
-    changeWriter.write();
+      val detailsQueue = new Queue<Action<CommitDetails>>(10);
+      val pipeline = new FetchCommitPipeline(pipelineActions, detailsQueue);
+      submit(scope, pipeline::run);
+
+      val changeQueue = new Queue<Action<WriteDispacher.WriteChangesAction>>(100);
+      val renamingQueue = new Queue<Action<WriteDispacher.WriteRenamingAction>>(100);
+      val commitQueue = new Queue<Action<WriteDispacher.WriteCommits>>(100);
+      val infoOutput = this.<CommitDetails>queueOf(20);
+      val writeDispatcher = new WriteDispacher(infoOutput, changeQueue, renamingQueue, commitQueue);
+      submit(scope, writeDispatcher::run);
+
+      val commitWriteQueue = this.<WriteCommits>queueOf(100);
+      val branchWriteQueue = this.<WriteCommits>queueOf(100);
+      val commitMultiplex =
+          new Multiplexer<>(commitQueue, List.of(commitWriteQueue, branchWriteQueue));
+      submit(scope, commitMultiplex::run);
+
+      val branchPipeline =
+          new BranchWritePipeline(
+              branchWriteQueue, this.outputDirectory, "branches-%04d.parquet", this.branch);
+      submit(scope, branchPipeline::run);
+
+      val commitPipeline =
+          new CommitWritePipeline(commitWriteQueue, this.outputDirectory, "commits-%04d.parquet");
+      submit(scope, commitPipeline::run);
+
+      val changePipeline =
+          new ChangeWriterPipeline(changeQueue, this.outputDirectory, "changes-%04d.parquet");
+      submit(scope, changePipeline::run);
+
+      val renamingPipeline =
+          new RenameWriterPipeline(renamingQueue, this.outputDirectory, "renamings-%04d.parquet");
+      submit(scope, renamingPipeline::run);
+
+      scope.join();
+    } catch (InterruptedException e) {
+      throw new RuntimeException("Application execution interrupted", e);
+    }
   }
 
   public static void main(final String[] args) {
