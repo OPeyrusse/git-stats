@@ -8,6 +8,7 @@
 package com.activeviam.tooling.gitstats;
 
 import com.activeviam.tooling.gitstats.Application.Config;
+import com.activeviam.tooling.gitstats.internal.Threading;
 import com.activeviam.tooling.gitstats.internal.explorer.BranchCommitReader;
 import com.activeviam.tooling.gitstats.internal.explorer.ReadCommitDetails;
 import com.activeviam.tooling.gitstats.internal.explorer.ReadCommitDetails.CommitDetails;
@@ -31,9 +32,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.Semaphore;
-import java.util.concurrent.StructuredTaskScope;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.function.Consumer;
 import java.util.function.Function;
 import lombok.RequiredArgsConstructor;
 import lombok.val;
@@ -50,30 +49,6 @@ public class StructuredProgram {
     return new Queue<>(capacity);
   }
 
-  private static void submit(final StructuredTaskScope<?> scope, final Runnable task) {
-    scope.fork(
-        () -> {
-          try {
-            task.run();
-            return null;
-          } catch (Exception e) {
-            throw new RuntimeException("Failed to run task", e);
-          }
-        });
-  }
-
-  private static void execute(final ThrowingConsumer<StructuredTaskScope<?>> action) {
-    try (var scope = new StructuredTaskScope.ShutdownOnFailure()) {
-      action.accept(scope);
-      scope.join();
-      scope.throwIfFailed();
-    } catch (InterruptedException e) {
-      throw new RuntimeException("Step interrupted", e);
-    } catch (Exception e) {
-      throw new RuntimeException("Step failed", e);
-    }
-  }
-
   public void run() {
     try {
       Files.createDirectories(this.config.outputDirectory());
@@ -81,19 +56,19 @@ public class StructuredProgram {
       throw new RuntimeException("Failed to create output directory", e);
     }
 
-    execute(scope -> {
+    Threading.execute(scope -> {
       final var commitOutput = this.<String>queueOf(20);
       final var detailsOutput = this.<CommitDetails>queueOf(20);
       val branchCommitReader =
           new BranchCommitReader(this.config.projectDirectory(), this.config.branch(), this.config.startCommit(), this.config.count(), commitOutput);
-      submit(scope, branchCommitReader::run);
-      submit(scope, () -> processCommits(commitOutput,detailsOutput));
-      submit(scope, () -> processDetails(detailsOutput));
+      Threading.submit(scope, branchCommitReader::run);
+      Threading.submit(scope, () -> processCommits(commitOutput,detailsOutput));
+      Threading.submit(scope, () -> processDetails(detailsOutput));
     });
   }
 
   private void processCommits(final Queue<Action<String>> input, final Queue<Action<CommitDetails>> output) {
-    execute(scope -> {
+    Threading.execute(scope -> {
       val semaphore = new Semaphore(20);
       String lastCommit = null;
       while (true) {
@@ -102,7 +77,7 @@ public class StructuredProgram {
           case Value(final var commit) -> {
             lastCommit = commit;
             semaphore.acquire();
-            submit(scope, () -> {
+            Threading.submit(scope, () -> {
               fetchCommit(output, commit);
               semaphore.release();
             });
@@ -127,12 +102,12 @@ public class StructuredProgram {
   }
 
   private void processDetails(Queue<Action<CommitDetails>> input) {
-    execute(scope -> {
+    Threading.execute(scope -> {
       val semaphore = new Semaphore(20);
       val counter = new AtomicInteger(0);
-      val changeAccumulator = new Buffer<CommitDetails>(1000);
-      val renamingAccumulator = new Buffer<CommitDetails>( 1000);
-      val commitAccumulator = new Buffer<CommitInfo>(1000);
+      val changeAccumulator = new Buffer<CommitDetails>(2000);
+      val renamingAccumulator = new Buffer<CommitDetails>( 5000);
+      val commitAccumulator = new Buffer<CommitInfo>(10000);
       while (true) {
         final var action = input.take();
         switch (action) {
@@ -140,7 +115,7 @@ public class StructuredProgram {
             changeAccumulator.add(details, details.fileChanges().size());
             if (changeAccumulator.hasEnough()) {
               semaphore.acquire();
-              submit(scope, () -> {
+              Threading.submit(scope, () -> {
                 writeChanges(changeAccumulator.drain(), counter.incrementAndGet());
                 semaphore.release();
               });
@@ -148,7 +123,7 @@ public class StructuredProgram {
             renamingAccumulator.add(details, details.fileRenamings().size());
             if (renamingAccumulator.hasEnough()) {
               semaphore.acquire();
-              submit(scope, () -> {
+              Threading.submit(scope, () -> {
                 writeRenamings(renamingAccumulator.drain(), counter.incrementAndGet());
                 semaphore.release();
               });
@@ -157,12 +132,12 @@ public class StructuredProgram {
             if (commitAccumulator.hasEnough()) {
               val commits = commitAccumulator.drain();
               semaphore.acquire();
-              submit(scope, () -> {
+              Threading.submit(scope, () -> {
                 writeCommits(commits, counter.incrementAndGet());
                 semaphore.release();
               });
               semaphore.acquire();
-              submit(scope, () -> {
+              Threading.submit(scope, () -> {
                 writeBranch(commits, counter.incrementAndGet());
                 semaphore.release();
               });
@@ -170,15 +145,15 @@ public class StructuredProgram {
           }
           case Stop<?> _ -> {
             if (changeAccumulator.isNotEmpty()) {
-              submit(scope, () -> writeChanges(changeAccumulator.drain(), counter.incrementAndGet()));
+              Threading.submit(scope, () -> writeChanges(changeAccumulator.drain(), counter.incrementAndGet()));
             }
             if (renamingAccumulator.isNotEmpty()) {
-              submit(scope, () -> writeRenamings(renamingAccumulator.drain(), counter.incrementAndGet()));
+              Threading.submit(scope, () -> writeRenamings(renamingAccumulator.drain(), counter.incrementAndGet()));
             }
             if (commitAccumulator.isNotEmpty()) {
               val commits = commitAccumulator.drain();
-              submit(scope, () -> writeCommits(commits, counter.incrementAndGet()));
-              submit(scope, () -> writeBranch(commits, counter.incrementAndGet()));
+              Threading.submit(scope, () -> writeCommits(commits, counter.incrementAndGet()));
+              Threading.submit(scope, () -> writeBranch(commits, counter.incrementAndGet()));
             }
             return;
           }
@@ -229,15 +204,4 @@ public class StructuredProgram {
   }
 
 
-  interface ThrowingConsumer<T> extends Consumer<T> {
-    default void accept(T t) {
-      try {
-        acceptThrows(t);
-      } catch (Exception e) {
-        throw new RuntimeException(e);
-      }
-    }
-
-    void acceptThrows(T t) throws Exception;
-  }
 }

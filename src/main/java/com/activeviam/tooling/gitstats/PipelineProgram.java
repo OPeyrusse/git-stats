@@ -8,6 +8,7 @@
 package com.activeviam.tooling.gitstats;
 
 import com.activeviam.tooling.gitstats.Application.Config;
+import com.activeviam.tooling.gitstats.internal.Threading;
 import com.activeviam.tooling.gitstats.internal.explorer.BranchCommitReader;
 import com.activeviam.tooling.gitstats.internal.explorer.ReadCommitDetails.CommitDetails;
 import com.activeviam.tooling.gitstats.internal.orchestration.Action;
@@ -46,23 +47,6 @@ public class PipelineProgram {
     return new Queue<>(capacity);
   }
 
-  private static void submit(final StructuredTaskScope<?> scope, final Runnable task) {
-    scope.fork(
-        () -> {
-          try {
-            task.run();
-            return null;
-          } catch (Exception e) {
-            throw new RuntimeException("Failed to run task", e);
-          }
-        });
-  }
-
-  private static void parallelize(
-      final StructuredTaskScope<?> scope, final int count, final IntFunction<Runnable> generator) {
-    IntStream.range(0, count).mapToObj(generator::apply).forEach(action -> submit(scope, action));
-  }
-
   public void run() {
     try {
       Files.createDirectories(this.config.outputDirectory());
@@ -74,15 +58,15 @@ public class PipelineProgram {
       final var commitOutput = this.<String>queueOf(20);
       val branchCommitReader =
           new BranchCommitReader(this.config.projectDirectory(), this.config.branch(), this.config.startCommit(), this.config.count(), commitOutput);
-      submit(scope, branchCommitReader::run);
+      Threading.submit(scope, branchCommitReader::run);
 
       final var pipelineActions = this.<FetchCommit>queueOf(20);
       val commitTransformer =
           new ReadCommitPipeline(this.config.projectDirectory(), commitOutput, pipelineActions);
-      submit(scope, commitTransformer::run);
+      Threading.submit(scope, commitTransformer::run);
 
       val detailsQueue = new Queue<Action<CommitDetails>>(10);
-      parallelize(
+      Threading.parallelize(
           scope,
           1,
           _ -> {
@@ -95,29 +79,29 @@ public class PipelineProgram {
       val commitQueue = new Queue<Action<WriteCommits>>(100);
       val writeDispatcher =
           new WriteDispacher(detailsQueue, changeQueue, renamingQueue, commitQueue);
-      submit(scope, writeDispatcher::run);
+      Threading.submit(scope, writeDispatcher::run);
 
       val commitWriteQueue = this.<WriteCommits>queueOf(100);
       val branchWriteQueue = this.<WriteCommits>queueOf(100);
       val commitMultiplex =
           new Multiplexer<>(commitQueue, List.of(commitWriteQueue, branchWriteQueue));
-      submit(scope, commitMultiplex::run);
+      Threading.submit(scope, commitMultiplex::run);
 
       val branchPipeline =
           new BranchWritePipeline(
               branchWriteQueue, this.config.outputDirectory(), "branches-%04d.parquet", this.config.branch());
-      submit(scope, branchPipeline::run);
+      Threading.submit(scope, branchPipeline::run);
 
       val commitPipeline =
           new CommitWritePipeline(commitWriteQueue, this.config.outputDirectory(), "commits-%04d.parquet");
-      submit(scope, commitPipeline::run);
+      Threading.submit(scope, commitPipeline::run);
 
-      parallelize(scope, 1, i -> {
+      Threading.parallelize(scope, 1, i -> {
         val changePipeline =
             new ChangeWriterPipeline(changeQueue, this.config.outputDirectory(), "changes-"+i+"-%04d.parquet");
         return changePipeline::run;
       });
-      parallelize(scope, 1, i->{
+      Threading.parallelize(scope, 1, i->{
         val renamingPipeline =
             new RenameWriterPipeline(renamingQueue, this.config.outputDirectory(), "renamings-"+i+"-%04d.parquet");
         return renamingPipeline::run;
