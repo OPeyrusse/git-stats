@@ -67,6 +67,7 @@ public abstract class Writer<T> {
       final HadoopOutputFile hadoopOutputFile = HadoopOutputFile.fromPath(path, config);
       return AvroParquetWriter.<GenericRecord>builder(hadoopOutputFile)
           .withSchema(createSchema())
+          .withPageWriteChecksumEnabled(false)
           .build();
     } catch (final IOException e) {
       throw new RuntimeException("Cannot create Parquet writer", e);
