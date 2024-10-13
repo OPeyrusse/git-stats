@@ -20,8 +20,9 @@ public sealed interface Action<T> permits Stop, Value {
     return new Value<>(value);
   }
 
+  @SuppressWarnings("unchecked")
   static <T> Action<T> stop() {
-    return new Stop<>();
+    return (Action<T>) Stop.INSTANCE;
   }
 
   Stream<T> unpack();
@@ -35,6 +36,8 @@ public sealed interface Action<T> permits Stop, Value {
   }
 
   record Stop<T>() implements Action<T> {
+
+    private static final Stop<Object> INSTANCE = new Stop<>();
 
     @Override
     public Stream<T> unpack() {

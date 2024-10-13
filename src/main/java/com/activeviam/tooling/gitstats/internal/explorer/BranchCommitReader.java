@@ -12,10 +12,11 @@ import com.activeviam.tooling.gitstats.internal.orchestration.Queue;
 import io.opentelemetry.api.trace.Span;
 import io.opentelemetry.instrumentation.annotations.WithSpan;
 import java.nio.file.Path;
-import java.text.MessageFormat;
 import java.util.List;
 import java.util.stream.IntStream;
+import lombok.Getter;
 import lombok.RequiredArgsConstructor;
+import lombok.val;
 
 /**
  * @author ActiveViam
@@ -28,6 +29,9 @@ public class BranchCommitReader {
   private final String startCommit;
   private final int historySize;
   private final Queue<Action<String>> output;
+
+  @Getter(lazy = true, value = lombok.AccessLevel.PRIVATE)
+  private final String resolvedCommit = resolveStartCommit();
 
   public void run() {
     final var increment = 100;
@@ -53,7 +57,16 @@ public class BranchCommitReader {
   }
 
   private String commit(int index) {
-    return MessageFormat.format("{0}~{1}", this.startCommit, index);
+    if (index == 0) {
+      return getResolvedCommit();
+    } else {
+      return String.format("%s~%d", getResolvedCommit(), index);
+    }
+  }
+
+  private String resolveStartCommit() {
+    val output = Shell.execute(List.of("git", "rev-parse", this.startCommit), this.projectDir);
+    return Shell.Output.readStream(output.stdout()).trim();
   }
 
   private String trimCommitLine(final String line) {

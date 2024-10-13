@@ -26,13 +26,16 @@ import org.apache.commons.cli.ParseException;
 @RequiredArgsConstructor
 public class Application {
 
-  static final Logger logger = Logger.getLogger("git-tools");
+  static final Logger logger = Logger.getLogger(Application.class.getName());
 
   private final Config config;
 
   public void run() {
     val startTime = System.nanoTime();
-    val pipeline = new PipelineProgram(config);
+    val pipeline = /*
+    new PipelineProgram(config);
+    /*/ new StructuredProgram(config);
+    // */
     pipeline.run();
     val endTime = System.nanoTime();
     logger.info("Execution time: " + TimeUnit.NANOSECONDS.toSeconds(endTime - startTime) + "s");

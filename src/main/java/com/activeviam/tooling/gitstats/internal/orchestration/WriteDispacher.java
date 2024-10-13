@@ -11,7 +11,6 @@ import com.activeviam.tooling.gitstats.internal.explorer.ReadCommitDetails.Commi
 import com.activeviam.tooling.gitstats.internal.explorer.ReadCommitDetails.CommitInfo;
 import com.activeviam.tooling.gitstats.internal.orchestration.Action.Stop;
 import com.activeviam.tooling.gitstats.internal.orchestration.Action.Value;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Function;
 import lombok.AccessLevel;
@@ -55,33 +54,9 @@ public class WriteDispacher {
   public record WriteRenamingAction(List<CommitDetails> commits) {}
   public record WriteCommits(List<CommitInfo> commits) {}
 
-  @RequiredArgsConstructor
-  private static class Buffer<E> {
-    private final List<E> buffer = new ArrayList<>();
-    private final int limit;
-    private int count = 0;
-
-    public void add(final E element, final int size) {
-      buffer.add(element);
-      this.count += size;
-    }
-
-    public boolean hasEnough() {
-      return this.count >= this.limit;
-    }
-
-    public boolean isEmpty() {
-      return this.buffer.isEmpty();
-    }
-
-    public List<E> drain() {
-      val result = List.copyOf(this.buffer);
-      this.buffer.clear();
-      this.count = 0;
-      return result;
-    }
-  }
-
+  /**
+   * @author ActiveViam
+   */
   @RequiredArgsConstructor(access = AccessLevel.PRIVATE)
   private static class Accumulator<T,U> {
     private final Buffer<T> buffer;

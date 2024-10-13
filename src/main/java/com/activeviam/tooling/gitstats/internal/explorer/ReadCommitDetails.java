@@ -17,7 +17,9 @@ import java.nio.file.Path;
 import java.time.Instant;
 import java.util.List;
 import java.util.Objects;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
+import lombok.val;
 
 /**
  * @author ActiveViam
@@ -41,20 +43,39 @@ public class ReadCommitDetails {
   }
 
   private List<FileChanges> readFileChanges() {
-    final var output =
-        Shell.execute(
+    final var process =
+        Shell.start(
             List.of("git", "show", "--format=oneline", "--numstat", this.commit), this.projectDir);
 
-    try (final var reader = new BufferedReader(new InputStreamReader(output.stdout()))) {
-      return reader.lines().skip(1).map(this::parseFileChange).collect(Collectors.toList());
+    final List<FileChanges> fileChanges;
+    try (final var reader = new BufferedReader(new InputStreamReader(process.getInputStream()))) {
+      fileChanges = reader.lines().skip(1).map(this::parseFileChange).collect(Collectors.toList());
     } catch (final IOException e) {
       throw new IllegalStateException("Cannot read git output for file changes", e);
+    }
+    checkProcessCompletion(process);
+    return fileChanges;
+  }
+
+  private static void checkProcessCompletion(Process process) {
+    try {
+      val success = process.waitFor(5, TimeUnit.SECONDS);
+      if (success) {
+        if (process.exitValue() != 0) {
+          throw new RuntimeException("Process failed with exit code " + process.exitValue());
+        }
+      } else {
+        throw new RuntimeException("Process did not complete in time");
+      }
+    } catch (InterruptedException e) {
+      throw new RuntimeException(
+          "Interrupted while waiting for the process completion after ending", e);
     }
   }
 
   private FileChanges parseFileChange(final String line) {
     final var parts = line.split("\\s+");
-    return new FileChanges(parts[2], parseCount(parts[0]), Integer.parseInt(parts[1]));
+    return new FileChanges(parts[2], parseCount(parts[0]), parseCount(parts[1]));
   }
 
   private static int parseCount(final String value) {
@@ -65,20 +86,19 @@ public class ReadCommitDetails {
   }
 
   private List<FileRenaming> readFileRenamings() {
-    final var output =
-        Shell.execute(
+    val process =
+        Shell.start(
             List.of("git", "show", "--format=oneline", "--numstat", this.commit), this.projectDir);
 
-    try (final var reader = new BufferedReader(new InputStreamReader(output.stdout()))) {
-      return reader
-          .lines()
-          .skip(1)
-          .map(this::parseFileInfo)
-          .filter(Objects::nonNull)
-          .collect(Collectors.toList());
+    final List<FileRenaming> fileRenamings;
+    try (final var reader = new BufferedReader(new InputStreamReader(process.getInputStream()))) {
+      fileRenamings =
+          reader.lines().skip(1).map(this::parseFileInfo).filter(Objects::nonNull).toList();
     } catch (final IOException e) {
       throw new IllegalStateException("Cannot read git output for file changes", e);
     }
+    checkProcessCompletion(process);
+    return fileRenamings;
   }
 
   private FileRenaming parseFileInfo(final String line) {

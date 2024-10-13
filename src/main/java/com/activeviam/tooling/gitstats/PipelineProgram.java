@@ -26,6 +26,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.StructuredTaskScope;
 import java.util.function.IntFunction;
 import java.util.logging.Logger;
@@ -69,21 +70,21 @@ public class PipelineProgram {
       throw new RuntimeException("Failed to create output directory", e);
     }
 
-    try (var scope = new StructuredTaskScope<>()) {
+    try (var scope = new StructuredTaskScope.ShutdownOnFailure()) {
       final var commitOutput = this.<String>queueOf(20);
       val branchCommitReader =
-          new BranchCommitReader(this.config.outputDirectory(), this.config.branch(), this.config.startCommit(), this.config.count(), commitOutput);
+          new BranchCommitReader(this.config.projectDirectory(), this.config.branch(), this.config.startCommit(), this.config.count(), commitOutput);
       submit(scope, branchCommitReader::run);
 
       final var pipelineActions = this.<FetchCommit>queueOf(20);
       val commitTransformer =
-          new ReadCommitPipeline(this.config.outputDirectory(), commitOutput, pipelineActions);
+          new ReadCommitPipeline(this.config.projectDirectory(), commitOutput, pipelineActions);
       submit(scope, commitTransformer::run);
 
       val detailsQueue = new Queue<Action<CommitDetails>>(10);
       parallelize(
           scope,
-          2,
+          1,
           _ -> {
             val pipeline = new FetchCommitPipeline(pipelineActions, detailsQueue);
             return pipeline::run;
@@ -111,20 +112,23 @@ public class PipelineProgram {
           new CommitWritePipeline(commitWriteQueue, this.config.outputDirectory(), "commits-%04d.parquet");
       submit(scope, commitPipeline::run);
 
-      parallelize(scope, 3, i -> {
+      parallelize(scope, 1, i -> {
         val changePipeline =
             new ChangeWriterPipeline(changeQueue, this.config.outputDirectory(), "changes-"+i+"-%04d.parquet");
         return changePipeline::run;
       });
-      parallelize(scope, 3, i->{
+      parallelize(scope, 1, i->{
         val renamingPipeline =
             new RenameWriterPipeline(renamingQueue, this.config.outputDirectory(), "renamings-"+i+"-%04d.parquet");
         return renamingPipeline::run;
       });
 
       scope.join();
+      scope.throwIfFailed();
     } catch (InterruptedException e) {
       throw new RuntimeException("Application execution interrupted", e);
+    } catch (ExecutionException e) {
+      throw new RuntimeException("Application failed", e);
     }
   }
 }
