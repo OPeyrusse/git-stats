@@ -15,24 +15,19 @@ import java.nio.file.Path;
 import java.text.MessageFormat;
 import java.util.List;
 import java.util.stream.IntStream;
+import lombok.RequiredArgsConstructor;
 
 /**
  * @author ActiveViam
  */
+@RequiredArgsConstructor
 public class BranchCommitReader {
 
   private final Path projectDir;
   private final String branch;
+  private final String startCommit;
   private final int historySize;
   private final Queue<Action<String>> output;
-
-  public BranchCommitReader(
-      Path projectDir, String branch, int historySize, Queue<Action<String>> output) {
-    this.projectDir = projectDir;
-    this.branch = branch;
-    this.historySize = historySize;
-    this.output = output;
-  }
 
   public void run() {
     final var increment = 100;
@@ -58,7 +53,7 @@ public class BranchCommitReader {
   }
 
   private String commit(int index) {
-    return MessageFormat.format("{0}~{1}", this.branch, index);
+    return MessageFormat.format("{0}~{1}", this.startCommit, index);
   }
 
   private String trimCommitLine(final String line) {

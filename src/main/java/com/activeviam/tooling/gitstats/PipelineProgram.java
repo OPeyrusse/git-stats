@@ -7,6 +7,7 @@
 
 package com.activeviam.tooling.gitstats;
 
+import com.activeviam.tooling.gitstats.Application.Config;
 import com.activeviam.tooling.gitstats.internal.explorer.BranchCommitReader;
 import com.activeviam.tooling.gitstats.internal.explorer.ReadCommitDetails.CommitDetails;
 import com.activeviam.tooling.gitstats.internal.orchestration.Action;
@@ -29,22 +30,16 @@ import java.util.concurrent.StructuredTaskScope;
 import java.util.function.IntFunction;
 import java.util.logging.Logger;
 import java.util.stream.IntStream;
+import lombok.RequiredArgsConstructor;
 import lombok.val;
 
 /**
  * @author ActiveViam
  */
+@RequiredArgsConstructor
 public class PipelineProgram {
 
-  private final Path projectDirectory;
-  private final Path outputDirectory;
-  private final String branch;
-
-  public PipelineProgram(final Path projectDirectory, final Path outputDirectory, String branch) {
-    this.projectDirectory = projectDirectory;
-    this.outputDirectory = outputDirectory;
-    this.branch = branch;
-  }
+  private final Config config;
 
   private <T> Queue<Action<T>> queueOf(final int capacity) {
     return new Queue<>(capacity);
@@ -69,7 +64,7 @@ public class PipelineProgram {
 
   public void run() {
     try {
-      Files.createDirectories(this.outputDirectory);
+      Files.createDirectories(this.config.outputDirectory());
     } catch (IOException e) {
       throw new RuntimeException("Failed to create output directory", e);
     }
@@ -77,12 +72,12 @@ public class PipelineProgram {
     try (var scope = new StructuredTaskScope<>()) {
       final var commitOutput = this.<String>queueOf(20);
       val branchCommitReader =
-          new BranchCommitReader(this.projectDirectory, this.branch, 10, commitOutput);
+          new BranchCommitReader(this.config.outputDirectory(), this.config.branch(), this.config.startCommit(), this.config.count(), commitOutput);
       submit(scope, branchCommitReader::run);
 
       final var pipelineActions = this.<FetchCommit>queueOf(20);
       val commitTransformer =
-          new ReadCommitPipeline(this.projectDirectory, commitOutput, pipelineActions);
+          new ReadCommitPipeline(this.config.outputDirectory(), commitOutput, pipelineActions);
       submit(scope, commitTransformer::run);
 
       val detailsQueue = new Queue<Action<CommitDetails>>(10);
@@ -109,21 +104,21 @@ public class PipelineProgram {
 
       val branchPipeline =
           new BranchWritePipeline(
-              branchWriteQueue, this.outputDirectory, "branches-%04d.parquet", this.branch);
+              branchWriteQueue, this.config.outputDirectory(), "branches-%04d.parquet", this.config.branch());
       submit(scope, branchPipeline::run);
 
       val commitPipeline =
-          new CommitWritePipeline(commitWriteQueue, this.outputDirectory, "commits-%04d.parquet");
+          new CommitWritePipeline(commitWriteQueue, this.config.outputDirectory(), "commits-%04d.parquet");
       submit(scope, commitPipeline::run);
 
       parallelize(scope, 3, i -> {
         val changePipeline =
-            new ChangeWriterPipeline(changeQueue, this.outputDirectory, "changes-"+i+"-%04d.parquet");
+            new ChangeWriterPipeline(changeQueue, this.config.outputDirectory(), "changes-"+i+"-%04d.parquet");
         return changePipeline::run;
       });
       parallelize(scope, 3, i->{
         val renamingPipeline =
-            new RenameWriterPipeline(renamingQueue, this.outputDirectory, "renamings-"+i+"-%04d.parquet");
+            new RenameWriterPipeline(renamingQueue, this.config.outputDirectory(), "renamings-"+i+"-%04d.parquet");
         return renamingPipeline::run;
       });
 

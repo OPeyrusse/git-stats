@@ -8,7 +8,10 @@
 package com.activeviam.tooling.gitstats;
 
 import java.nio.file.Path;
+import java.util.Optional;
+import java.util.concurrent.TimeUnit;
 import java.util.logging.Logger;
+import lombok.RequiredArgsConstructor;
 import lombok.val;
 import org.apache.commons.cli.CommandLine;
 import org.apache.commons.cli.DefaultParser;
@@ -20,23 +23,19 @@ import org.apache.commons.cli.ParseException;
 /**
  * @author ActiveViam
  */
+@RequiredArgsConstructor
 public class Application {
 
   static final Logger logger = Logger.getLogger("git-tools");
 
-  private final Path projectDirectory;
-  private final Path outputDirectory;
-  private final String branch;
-
-  public Application(final Path projectDirectory, final Path outputDirectory, String branch) {
-    this.projectDirectory = projectDirectory;
-    this.outputDirectory = outputDirectory;
-    this.branch = branch;
-  }
+  private final Config config;
 
   public void run() {
-    val pipeline = new PipelineProgram(projectDirectory, outputDirectory, branch);
+    val startTime = System.nanoTime();
+    val pipeline = new PipelineProgram(config);
     pipeline.run();
+    val endTime = System.nanoTime();
+    logger.info("Execution time: " + TimeUnit.NANOSECONDS.toSeconds(endTime - startTime) + "s");
   }
 
   public static void main(final String[] args) {
@@ -60,6 +59,14 @@ public class Application {
     branch.setRequired(true);
     options.addOption(branch);
 
+    final var startCommit = new Option("s", "start", true, "Start commit");
+    startCommit.setRequired(false);
+    options.addOption(startCommit);
+
+    final var count = new Option("n", "count", true, "Number of commits to collect");
+    count.setRequired(false);
+    options.addOption(count);
+
     return options;
   }
 
@@ -77,8 +84,14 @@ public class Application {
     }
 
     return new Application(
-        Path.of(cmd.getOptionValue("project")),
-        Path.of(cmd.getOptionValue("output")),
-        cmd.getOptionValue("branch"));
+        new Config(
+            Path.of(cmd.getOptionValue("project")),
+            Path.of(cmd.getOptionValue("output")),
+            cmd.getOptionValue("branch"),
+            Optional.ofNullable(cmd.getOptionValue("start")).orElse(cmd.getOptionValue("branch")),
+            Integer.parseInt(cmd.getOptionValue("count", "10"))));
   }
+
+  public record Config(
+      Path projectDirectory, Path outputDirectory, String branch, String startCommit, int count) {}
 }
