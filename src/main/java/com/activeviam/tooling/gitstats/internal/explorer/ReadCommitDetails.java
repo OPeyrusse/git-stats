@@ -9,16 +9,14 @@ package com.activeviam.tooling.gitstats.internal.explorer;
 
 import com.activeviam.tooling.gitstats.internal.explorer.Shell.Output;
 import com.activeviam.tooling.gitstats.internal.shell.ChangeReader;
+import com.activeviam.tooling.gitstats.internal.shell.CommitDateReader;
+import com.activeviam.tooling.gitstats.internal.shell.RenameReader;
 import io.opentelemetry.api.trace.Span;
 import io.opentelemetry.instrumentation.annotations.WithSpan;
-import java.io.BufferedReader;
-import java.io.IOException;
-import java.io.InputStreamReader;
 import java.nio.file.Path;
 import java.time.Instant;
 import java.util.List;
 import java.util.Objects;
-import java.util.concurrent.TimeUnit;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import lombok.val;
@@ -37,71 +35,36 @@ public class ReadCommitDetails {
   }
 
   private Instant readCommitDate() {
-    final var output =
-        Shell.execute(
-            List.of("git", "show", "--format=%ct", this.commit, "--no-patch"), this.projectDir);
+    final var output = Shell.execute(CommitDateReader.getCommand(this.commit), this.projectDir);
     final var stdout = Output.readStream(output.stdout()).trim();
-    return Instant.ofEpochMilli(Long.parseLong(stdout));
+    return CommitDateReader.parseLine(stdout);
   }
 
   private List<FileChanges> readFileChanges() {
     final var process = Shell.start(ChangeReader.getCommand(this.commit), this.projectDir);
 
-    final List<FileChanges> fileChanges;
-    try (final var reader = new BufferedReader(new InputStreamReader(process.getInputStream()))) {
-      fileChanges =
-          reader
-              .lines()
-              .skip(1)
-              .filter(Predicate.not(String::isBlank))
-              .map(ChangeReader::parseLine)
-              .collect(Collectors.toList());
-    } catch (final IOException e) {
-      throw new IllegalStateException("Cannot read git output for file changes", e);
-    }
-    checkProcessCompletion(process);
-    return fileChanges;
-  }
-
-  private static void checkProcessCompletion(Process process) {
-    try {
-      val success = process.waitFor(5, TimeUnit.SECONDS);
-      if (success) {
-        if (process.exitValue() != 0) {
-          throw new RuntimeException("Process failed with exit code " + process.exitValue());
-        }
-      } else {
-        throw new RuntimeException("Process did not complete in time");
-      }
-    } catch (InterruptedException e) {
-      throw new RuntimeException(
-          "Interrupted while waiting for the process completion after ending", e);
-    }
+    return Shell.Output.consumeStdout(
+        process,
+        reader ->
+            reader
+                .lines()
+                .skip(1)
+                .filter(Predicate.not(String::isBlank))
+                .map(ChangeReader::parseLine)
+                .collect(Collectors.toList()));
   }
 
   private List<FileRenaming> readFileRenamings() {
-    val process =
-        Shell.start(
-            List.of("git", "show", "--format=oneline", "--numstat", this.commit), this.projectDir);
+    val process = Shell.start(RenameReader.getCommand(this.commit), this.projectDir);
 
-    final List<FileRenaming> fileRenamings;
-    try (final var reader = new BufferedReader(new InputStreamReader(process.getInputStream()))) {
-      fileRenamings =
-          reader.lines().skip(1).map(this::parseFileInfo).filter(Objects::nonNull).toList();
-    } catch (final IOException e) {
-      throw new IllegalStateException("Cannot read git output for file changes", e);
-    }
-    checkProcessCompletion(process);
-    return fileRenamings;
+    return Shell.Output.consumeStdout(
+        process,
+        reader ->
+            reader.lines().skip(1).map(this::parseFileInfo).filter(Objects::nonNull).toList());
   }
 
   private FileRenaming parseFileInfo(final String line) {
-    final var parts = line.split("\\s+");
-    if (parts.length == 7) {
-      return new FileRenaming(parts[6], parts[5]);
-    } else {
-      return null;
-    }
+    return RenameReader.parseLine(line).orElse(null);
   }
 
   @WithSpan("Read commit details")

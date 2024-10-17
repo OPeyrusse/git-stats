@@ -38,8 +38,8 @@ public class FileRenamingWriter extends Writer<Map.Entry<CommitInfo, FileRenamin
         .fields()
         .requiredString("commit")
         .requiredLong("timestamp")
-        .requiredLong("before")
-        .requiredLong("after")
+        .requiredString("before")
+        .requiredString("after")
         .endRecord();
   }
 

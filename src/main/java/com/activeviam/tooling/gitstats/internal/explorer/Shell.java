@@ -9,11 +9,16 @@ package com.activeviam.tooling.gitstats.internal.explorer;
 
 import io.opentelemetry.instrumentation.annotations.SpanAttribute;
 import io.opentelemetry.instrumentation.annotations.WithSpan;
+import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.InputStreamReader;
 import java.nio.file.Path;
 import java.util.List;
+import java.util.concurrent.TimeUnit;
+import java.util.function.Function;
 import java.util.logging.Logger;
+import lombok.val;
 
 /**
  * @author ActiveViam
@@ -32,11 +37,12 @@ public class Shell {
       if (process.exitValue() != 0) {
         logger.severe("Output " + Output.readStream(process.getInputStream()));
         logger.severe("Error " + Output.readStream(process.getErrorStream()));
-        throw new RuntimeException("Command "+command+" failed with exit status " + process.exitValue());
+        throw new RuntimeException(
+            "Command " + command + " failed with exit status " + process.exitValue());
       }
     } catch (InterruptedException e) {
       Thread.currentThread().interrupt();
-      throw new RuntimeException("Command "+command+" interrupted", e);
+      throw new RuntimeException("Command " + command + " interrupted", e);
     }
     return new Output(process.getInputStream(), process.getErrorStream());
   }
@@ -58,6 +64,34 @@ public class Shell {
         return new String(stream.readAllBytes());
       } catch (final IOException e) {
         throw new IllegalStateException("Cannot read output stream", e);
+      }
+    }
+
+    public static <T> T consumeStdout(
+        final Process process, Function<BufferedReader, T> transformer) {
+      final T result;
+      try (final var reader = new BufferedReader(new InputStreamReader(process.getInputStream()))) {
+        result = transformer.apply(reader);
+      } catch (final IOException e) {
+        throw new IllegalStateException("Cannot read git output for file changes", e);
+      }
+      checkProcessCompletion(process);
+      return result;
+    }
+
+    private static void checkProcessCompletion(Process process) {
+      try {
+        val success = process.waitFor(5, TimeUnit.SECONDS);
+        if (success) {
+          if (process.exitValue() != 0) {
+            throw new RuntimeException("Process failed with exit code " + process.exitValue());
+          }
+        } else {
+          throw new RuntimeException("Process did not complete in time");
+        }
+      } catch (InterruptedException e) {
+        throw new RuntimeException(
+            "Interrupted while waiting for the process completion after ending", e);
       }
     }
   }

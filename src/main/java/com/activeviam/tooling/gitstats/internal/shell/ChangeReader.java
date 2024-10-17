@@ -21,8 +21,6 @@ public class ChangeReader {
       Pattern.compile(
           "^(?<adds>-|\\d+)\\s+(?<dels>-|\\d+)\\s+(?<before>.*?)\\{.*? => (?<target>.*?)}(?<after>.*)$");
 
-  //      Pattern.compile("^(-|\\d+)\\s+(-|\\d+)\\s+(.*?)\\{.*? => (.*?)}(.*)$");
-
   private ChangeReader() {}
 
   public static List<String> getCommand(final String commit) {
