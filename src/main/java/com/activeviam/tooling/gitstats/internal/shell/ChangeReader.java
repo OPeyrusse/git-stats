@@ -9,6 +9,7 @@ package com.activeviam.tooling.gitstats.internal.shell;
 
 import com.activeviam.tooling.gitstats.internal.explorer.ReadCommitDetails.FileChanges;
 import java.util.List;
+import java.util.Objects;
 import java.util.regex.Pattern;
 import lombok.val;
 
@@ -19,7 +20,7 @@ public class ChangeReader {
 
   private static final Pattern COMPLEX_FILE_PATTERN =
       Pattern.compile(
-          "^(?<adds>-|\\d+)\\s+(?<dels>-|\\d+)\\s+(?<before>.*?)\\{.*? => (?<target>.*?)}(?<after>.*)$");
+          "^(?<adds>-|\\d+)\\s+(?<dels>-|\\d+)\\s+(?:(?<before>.*?)\\{)?.*? => (?<target>.*?)(:?}(?<after>.*))?$");
 
   private ChangeReader() {}
 
@@ -42,9 +43,9 @@ public class ChangeReader {
     }
     val adds = matcher.group("adds");
     val dels = matcher.group("dels");
-    val before = matcher.group("before");
+    val before = Objects.requireNonNullElse(matcher.group("before"), "");
     val target = matcher.group("target");
-    val after = matcher.group("after");
+    val after = Objects.requireNonNullElse(matcher.group("after"), "");
     return new FileChanges(before + target + after, parseCount(adds), parseCount(dels));
   }
 

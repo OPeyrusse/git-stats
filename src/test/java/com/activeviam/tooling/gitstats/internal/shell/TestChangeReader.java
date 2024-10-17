@@ -60,7 +60,11 @@ class TestChangeReader {
             "path/to/composer/chunks/After.java"),
         Arguments.of(
             "path/{apm/src => composer/chunks}/around/Pool.java",
-            "path/composer/chunks/around/Pool.java"));
+            "path/composer/chunks/around/Pool.java"),
+        // Completely renamed
+        Arguments.of(
+            "atoti/plugins/Before.java => sources/jdbc-source/After.java",
+            "sources/jdbc-source/After.java"));
   }
 
   @ParameterizedTest
