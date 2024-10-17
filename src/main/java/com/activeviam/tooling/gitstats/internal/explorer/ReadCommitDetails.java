@@ -18,9 +18,9 @@ import java.nio.file.Path;
 import java.time.Instant;
 import java.util.List;
 import java.util.Objects;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.StructuredTaskScope;
 import java.util.function.Predicate;
-import java.util.stream.Collectors;
 import lombok.val;
 
 /**
@@ -79,11 +79,14 @@ public class ReadCommitDetails {
       val renameTask = scope.fork(this::readFileRenamings);
 
       scope.join();
+      scope.throwIfFailed();
       return new CommitDetails(
           new CommitInfo(this.commit, dateTask.get()), changesTask.get(), renameTask.get());
     } catch (final InterruptedException e) {
       Thread.currentThread().interrupt();
       throw new ProgramException("Read interrupted while fetching details", e);
+    } catch (ExecutionException e) {
+      throw new ProgramException("Failed to read commit details", e);
     }
   }
 
