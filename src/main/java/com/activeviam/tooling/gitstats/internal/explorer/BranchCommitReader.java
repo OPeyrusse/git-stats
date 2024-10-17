@@ -8,6 +8,7 @@
 package com.activeviam.tooling.gitstats.internal.explorer;
 
 import com.activeviam.tooling.gitstats.ProgramException;
+import com.activeviam.tooling.gitstats.internal.explorer.Shell.Output;
 import com.activeviam.tooling.gitstats.internal.orchestration.Action;
 import com.activeviam.tooling.gitstats.internal.orchestration.Queue;
 import io.opentelemetry.api.trace.Span;
@@ -16,6 +17,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Predicate;
 import java.util.logging.Level;
 import java.util.stream.Collectors;
@@ -35,8 +37,10 @@ public class BranchCommitReader {
   private final Path projectDir;
   private final String branch;
   private final String startCommit;
+  private final String lastCommit = "not-a-sha1";
   private final int historySize;
   private final Queue<Action<String>> output;
+  private final AtomicBoolean stop = new AtomicBoolean(false);
 
   @Getter(lazy = true, value = lombok.AccessLevel.PRIVATE)
   private final String resolvedCommit = resolveStartCommit();
@@ -47,7 +51,12 @@ public class BranchCommitReader {
   public void run() {
     final var increment = 100;
     IntStream.iterate(0, i -> i < this.historySize, i -> i + increment)
-        .forEach(start -> readCommits(start, increment));
+        .forEach(
+            start -> {
+              if (!stop.get()) {
+                this.readCommits(start, increment);
+              }
+            });
     this.output.put(Action.stop());
   }
 
@@ -59,15 +68,23 @@ public class BranchCommitReader {
     final var end = Math.min(start + increment, this.historySize);
     Span.current().setAttribute("end-commit", end);
 
+    final var range = commit(end) + ".." + commit(start);
     final var commandOutput =
-        Shell.execute(
-            List.of("git", "log", "--format=%H", commit(end) + ".." + commit(start)),
-            this.projectDir);
-    Shell.Output.readStream(commandOutput.stdout())
-        .lines()
-        .filter(Predicate.not(getCommitsToIgnore()::contains))
-        .map(Action::value)
-        .forEach(this.output::put);
+        Shell.execute(List.of("git", "log", "--format=%H", range), this.projectDir);
+    final var commits =
+        Output.readStream(commandOutput.stdout())
+            .lines()
+            .filter(Predicate.not(getCommitsToIgnore()::contains))
+            .limit(increment + 1)
+            .toList();
+    if (commits.size() > increment) {
+      throw new IllegalStateException("Too many commits returned by " + range);
+    }
+    if (commits.contains(this.lastCommit)) {
+      stop.set(true);
+    } else {
+      commits.stream().map(Action::value).forEach(this.output::put);
+    }
   }
 
   private String commit(int index) {
