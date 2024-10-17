@@ -17,6 +17,7 @@ import java.nio.file.Path;
 import java.time.Instant;
 import java.util.List;
 import java.util.Objects;
+import java.util.concurrent.StructuredTaskScope;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import lombok.val;
@@ -71,10 +72,17 @@ public class ReadCommitDetails {
   public CommitDetails read() {
     Span.current().setAttribute("commit", this.commit);
     Span.current().setAttribute("project", this.projectDir.toString());
-    final Instant commitDate = readCommitDate();
-    final var changes = readFileChanges();
-    final var renamings = readFileRenamings();
-    return new CommitDetails(new CommitInfo(this.commit, commitDate), changes, renamings);
+    try (val scope = new StructuredTaskScope.ShutdownOnFailure()) {
+      val dateTask = scope.fork(this::readCommitDate);
+      val changesTask = scope.fork(this::readFileChanges);
+      val renameTask = scope.fork(this::readFileRenamings);
+
+      scope.join();
+      return new CommitDetails(
+          new CommitInfo(this.commit, dateTask.get()), changesTask.get(), renameTask.get());
+    } catch (final InterruptedException e) {
+      throw new RuntimeException("Read interrupted while fetching details", e);
+    }
   }
 
   public record CommitDetails(
