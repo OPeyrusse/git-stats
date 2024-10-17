@@ -8,6 +8,7 @@
 package com.activeviam.tooling.gitstats.internal.explorer;
 
 import com.activeviam.tooling.gitstats.internal.explorer.Shell.Output;
+import com.activeviam.tooling.gitstats.internal.shell.ChangeReader;
 import io.opentelemetry.api.trace.Span;
 import io.opentelemetry.instrumentation.annotations.WithSpan;
 import java.io.BufferedReader;
@@ -44,9 +45,7 @@ public class ReadCommitDetails {
   }
 
   private List<FileChanges> readFileChanges() {
-    final var process =
-        Shell.start(
-            List.of("git", "show", "--format=oneline", "--numstat", this.commit), this.projectDir);
+    final var process = Shell.start(ChangeReader.getCommand(this.commit), this.projectDir);
 
     final List<FileChanges> fileChanges;
     try (final var reader = new BufferedReader(new InputStreamReader(process.getInputStream()))) {
@@ -55,7 +54,7 @@ public class ReadCommitDetails {
               .lines()
               .skip(1)
               .filter(Predicate.not(String::isBlank))
-              .map(this::parseFileChange)
+              .map(ChangeReader::parseLine)
               .collect(Collectors.toList());
     } catch (final IOException e) {
       throw new IllegalStateException("Cannot read git output for file changes", e);
@@ -78,18 +77,6 @@ public class ReadCommitDetails {
       throw new RuntimeException(
           "Interrupted while waiting for the process completion after ending", e);
     }
-  }
-
-  private FileChanges parseFileChange(final String line) {
-    final var parts = line.split("\\s+");
-    return new FileChanges(parts[2], parseCount(parts[0]), parseCount(parts[1]));
-  }
-
-  private static int parseCount(final String value) {
-    if (value.contains("-")) {
-      return -1;
-    }
-    return Integer.parseInt(value);
   }
 
   private List<FileRenaming> readFileRenamings() {
