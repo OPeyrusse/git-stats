@@ -34,9 +34,9 @@ public class CommitWriter extends Writer<CommitInfo> {
   }
 
   @Override
-  protected void fillRecord(Record record, CommitInfo commit) {
-    record.put("commit", commit.sha1());
-    record.put("timestamp", commit.date().getEpochSecond());
+  protected void fillRecord(Record recordToFill, CommitInfo commit) {
+    recordToFill.put("commit", commit.sha1());
+    recordToFill.put("timestamp", commit.date().getEpochSecond());
   }
 
   @WithSpan("Write commits")

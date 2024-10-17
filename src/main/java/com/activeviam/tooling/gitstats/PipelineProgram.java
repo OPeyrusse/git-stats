@@ -51,7 +51,7 @@ public class PipelineProgram {
     try {
       Files.createDirectories(this.config.outputDirectory());
     } catch (IOException e) {
-      throw new RuntimeException("Failed to create output directory", e);
+      throw new ProgramException("Failed to create output directory", e);
     }
 
     try (var scope = new StructuredTaskScope.ShutdownOnFailure()) {
@@ -110,9 +110,10 @@ public class PipelineProgram {
       scope.join();
       scope.throwIfFailed();
     } catch (InterruptedException e) {
-      throw new RuntimeException("Application execution interrupted", e);
+      Thread.currentThread().interrupt();
+      throw new ProgramException("Application execution interrupted", e);
     } catch (ExecutionException e) {
-      throw new RuntimeException("Application failed", e);
+      throw new ProgramException("Application failed", e);
     }
   }
 }

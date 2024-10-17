@@ -44,12 +44,12 @@ public class FileRenamingWriter extends Writer<Map.Entry<CommitInfo, FileRenamin
   }
 
   @Override
-  protected void fillRecord(Record record, Map.Entry<CommitInfo, FileRenaming> entry) {
+  protected void fillRecord(Record recordToFill, Map.Entry<CommitInfo, FileRenaming> entry) {
     val commit = entry.getKey();
     val changes = entry.getValue();
-    record.put("commit", commit.sha1());
-    record.put("timestamp", commit.date().getEpochSecond());
-    record.put("before", changes.from());
-    record.put("after", changes.to());
+    recordToFill.put("commit", commit.sha1());
+    recordToFill.put("timestamp", commit.date().getEpochSecond());
+    recordToFill.put("before", changes.from());
+    recordToFill.put("after", changes.to());
   }
 }

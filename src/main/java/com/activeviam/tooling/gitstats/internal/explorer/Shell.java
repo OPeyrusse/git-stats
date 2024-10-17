@@ -7,6 +7,7 @@
 
 package com.activeviam.tooling.gitstats.internal.explorer;
 
+import com.activeviam.tooling.gitstats.ProgramException;
 import io.opentelemetry.instrumentation.annotations.SpanAttribute;
 import io.opentelemetry.instrumentation.annotations.WithSpan;
 import java.io.BufferedReader;
@@ -17,6 +18,7 @@ import java.nio.file.Path;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
+import java.util.logging.Level;
 import java.util.logging.Logger;
 import lombok.val;
 
@@ -35,14 +37,16 @@ public class Shell {
       process = start(command, workingDirectory);
       process.waitFor();
       if (process.exitValue() != 0) {
-        logger.severe("Output " + Output.readStream(process.getInputStream()));
-        logger.severe("Error " + Output.readStream(process.getErrorStream()));
-        throw new RuntimeException(
+        if (logger.isLoggable(Level.SEVERE)) {
+          logger.severe("Output " + Output.readStream(process.getInputStream()));
+          logger.severe("Error " + Output.readStream(process.getErrorStream()));
+        }
+        throw new ProgramException(
             "Command " + command + " failed with exit status " + process.exitValue());
       }
     } catch (InterruptedException e) {
       Thread.currentThread().interrupt();
-      throw new RuntimeException("Command " + command + " interrupted", e);
+      throw new ProgramException("Command " + command + " interrupted", e);
     }
     return new Output(process.getInputStream(), process.getErrorStream());
   }
@@ -54,7 +58,7 @@ public class Shell {
     try {
       return builder.start();
     } catch (IOException e) {
-      throw new RuntimeException(e);
+      throw new ProgramException("Failure in command " + command, e);
     }
   }
 
@@ -84,13 +88,14 @@ public class Shell {
         val success = process.waitFor(5, TimeUnit.SECONDS);
         if (success) {
           if (process.exitValue() != 0) {
-            throw new RuntimeException("Process failed with exit code " + process.exitValue());
+            throw new ProgramException("Process failed with exit code " + process.exitValue());
           }
         } else {
-          throw new RuntimeException("Process did not complete in time");
+          throw new ProgramException("Process did not complete in time");
         }
-      } catch (InterruptedException e) {
-        throw new RuntimeException(
+      } catch (final InterruptedException e) {
+        Thread.currentThread().interrupt();
+        throw new ProgramException(
             "Interrupted while waiting for the process completion after ending", e);
       }
     }

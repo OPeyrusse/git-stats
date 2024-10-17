@@ -7,6 +7,7 @@
 
 package com.activeviam.tooling.gitstats.internal.writing;
 
+import com.activeviam.tooling.gitstats.ProgramException;
 import io.opentelemetry.api.trace.Span;
 import java.io.IOException;
 import java.nio.file.Files;
@@ -38,27 +39,27 @@ public abstract class Writer<T> {
     try {
       Files.deleteIfExists(this.outputFile);
     } catch (final IOException e) {
-      throw new RuntimeException("Failed to delete the target file", e);
+      throw new ProgramException("Failed to delete the target file", e);
     }
     try (final var writer = createWriter()) {
       this.data
           .toStream()
           .forEach(
               changes -> {
-                final var record = new GenericData.Record(createSchema());
-                fillRecord(record, changes);
+                final var recordToFill = new GenericData.Record(createSchema());
+                fillRecord(recordToFill, changes);
                 try {
-                  writer.write(record);
+                  writer.write(recordToFill);
                 } catch (IOException e) {
-                  throw new RuntimeException("Failed to write commit value", e);
+                  throw new ProgramException("Failed to write commit value", e);
                 }
               });
     } catch (IOException e) {
-      throw new RuntimeException("Failed to write to parquet", e);
+      throw new ProgramException("Failed to write to parquet", e);
     }
   }
 
-  protected abstract void fillRecord(Record record, T changes);
+  protected abstract void fillRecord(Record recordToFill, T changes);
 
   private ParquetWriter<GenericRecord> createWriter() {
     final var config = new Configuration();
@@ -70,7 +71,7 @@ public abstract class Writer<T> {
           .withPageWriteChecksumEnabled(false)
           .build();
     } catch (final IOException e) {
-      throw new RuntimeException("Cannot create Parquet writer", e);
+      throw new ProgramException("Cannot create Parquet writer", e);
     }
   }
 

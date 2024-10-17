@@ -7,6 +7,7 @@
 
 package com.activeviam.tooling.gitstats.internal;
 
+import com.activeviam.tooling.gitstats.ProgramException;
 import java.util.concurrent.StructuredTaskScope;
 import java.util.function.Consumer;
 import java.util.function.IntFunction;
@@ -24,7 +25,7 @@ public class Threading {
             task.run();
             return null;
           } catch (Exception e) {
-            throw new RuntimeException("Failed to run task", e);
+            throw new ProgramException("Failed to run task", e);
           }
         });
   }
@@ -40,9 +41,10 @@ public class Threading {
       scope.join();
       scope.throwIfFailed();
     } catch (InterruptedException e) {
-      throw new RuntimeException("Step interrupted", e);
+      Thread.currentThread().interrupt();
+      throw new ProgramException("Step interrupted", e);
     } catch (Exception e) {
-      throw new RuntimeException("Step failed", e);
+      throw new ProgramException("Step failed", e);
     }
   }
 
@@ -50,8 +52,8 @@ public class Threading {
     default void accept(T t) {
       try {
         acceptThrows(t);
-      } catch (Exception e) {
-        throw new RuntimeException(e);
+      } catch (final Exception e) {
+        throw new ProgramException(e);
       }
     }
 

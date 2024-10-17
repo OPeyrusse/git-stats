@@ -42,15 +42,15 @@ public class FileChangeWriter extends Writer<Map.Entry<String, FileChanges>> {
   }
 
   @Override
-  protected void fillRecord(Record record, Map.Entry<String, FileChanges> entry) {
+  protected void fillRecord(Record recordToFill, Map.Entry<String, FileChanges> entry) {
     val changes = entry.getValue();
     val commit = entry.getKey();
-    record.put("commit", commit);
-    record.put("path", changes.filename());
-    record.put("module", computeModule(changes));
-    record.put("filename", computeFileName(changes));
-    record.put("additions", changes.additions());
-    record.put("deletions", changes.deletions());
+    recordToFill.put("commit", commit);
+    recordToFill.put("path", changes.filename());
+    recordToFill.put("module", computeModule(changes));
+    recordToFill.put("filename", computeFileName(changes));
+    recordToFill.put("additions", changes.additions());
+    recordToFill.put("deletions", changes.deletions());
   }
 
   private static final Pattern SOURCE_PATTERN = Pattern.compile("^(.*)/src/(main|test|generated)/");

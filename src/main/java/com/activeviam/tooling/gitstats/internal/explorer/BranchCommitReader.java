@@ -7,6 +7,7 @@
 
 package com.activeviam.tooling.gitstats.internal.explorer;
 
+import com.activeviam.tooling.gitstats.ProgramException;
 import com.activeviam.tooling.gitstats.internal.orchestration.Action;
 import com.activeviam.tooling.gitstats.internal.orchestration.Queue;
 import io.opentelemetry.api.trace.Span;
@@ -58,11 +59,11 @@ public class BranchCommitReader {
     final var end = Math.min(start + increment, this.historySize);
     Span.current().setAttribute("end-commit", end);
 
-    final var output =
+    final var commandOutput =
         Shell.execute(
             List.of("git", "log", "--format=%H", commit(end) + ".." + commit(start)),
             this.projectDir);
-    Shell.Output.readStream(output.stdout())
+    Shell.Output.readStream(commandOutput.stdout())
         .lines()
         .filter(Predicate.not(getCommitsToIgnore()::contains))
         .map(Action::value)
@@ -78,8 +79,9 @@ public class BranchCommitReader {
   }
 
   private String resolveStartCommit() {
-    val output = Shell.execute(List.of("git", "rev-parse", this.startCommit), this.projectDir);
-    return Shell.Output.readStream(output.stdout()).trim();
+    val commandOutput =
+        Shell.execute(List.of("git", "rev-parse", this.startCommit), this.projectDir);
+    return Shell.Output.readStream(commandOutput.stdout()).trim();
   }
 
   private Set<String> readCommitsToIgnore() {
@@ -91,7 +93,7 @@ public class BranchCommitReader {
             .filter(line -> !line.startsWith("#"))
             .collect(Collectors.toUnmodifiableSet());
       } catch (final Exception e) {
-        throw new RuntimeException("Failed to read ignored commits", e);
+        throw new ProgramException("Failed to read ignored commits", e);
       }
     } else {
       return Set.of();

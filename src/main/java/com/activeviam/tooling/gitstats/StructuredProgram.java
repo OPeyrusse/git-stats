@@ -31,7 +31,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.Semaphore;
+import java.util.concurrent.StructuredTaskScope;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
 import lombok.RequiredArgsConstructor;
@@ -75,9 +75,7 @@ public class StructuredProgram {
         switch (action) {
           case Value(final var commit) -> {
             lastCommit = commit;
-            Threading.submit(scope, () -> {
-              fetchCommit(output, commit);
-            });
+            Threading.submit(scope, () -> fetchCommit(output, commit));
           }
           case Action.Stop<?> _ -> {
             Application.logger.info("Last commit: " + lastCommit);
@@ -108,47 +106,50 @@ public class StructuredProgram {
         final var action = input.take();
         switch (action) {
           case Value(final var details) -> {
-            changeAccumulator.add(details, details.fileChanges().size());
-            if (changeAccumulator.hasEnough()) {
-              Threading.submit(scope, () -> {
-                writeChanges(changeAccumulator.drain(), counter.incrementAndGet());
-              });
-            }
-            renamingAccumulator.add(details, details.fileRenamings().size());
-            if (renamingAccumulator.hasEnough()) {
-              Threading.submit(scope, () -> {
-                writeRenamings(renamingAccumulator.drain(), counter.incrementAndGet());
-              });
-            }
-            commitAccumulator.add(details.commit(), 1);
-            if (commitAccumulator.hasEnough()) {
-              val commits = commitAccumulator.drain();
-              Threading.submit(scope, () -> {
-                writeCommits(commits, counter.incrementAndGet());
-              });
-              Threading.submit(scope, () -> {
-                writeBranch(commits, counter.incrementAndGet());
-              });
-            }
+            processValue(scope, details, changeAccumulator, counter, renamingAccumulator, commitAccumulator);
           }
           case Stop<?> _ -> {
-            if (changeAccumulator.isNotEmpty()) {
-              Threading.submit(scope, () -> writeChanges(changeAccumulator.drain(), counter.incrementAndGet()));
-            }
-            if (renamingAccumulator.isNotEmpty()) {
-              Threading.submit(scope, () -> writeRenamings(renamingAccumulator.drain(), counter.incrementAndGet()));
-            }
-            if (commitAccumulator.isNotEmpty()) {
-              val commits = commitAccumulator.drain();
-              Threading.submit(scope, () -> writeCommits(commits, counter.incrementAndGet()));
-              Threading.submit(scope, () -> writeBranch(commits, counter.incrementAndGet()));
-            }
+            flush(scope, changeAccumulator, counter, renamingAccumulator, commitAccumulator);
             return;
           }
         }
         }
     });
 
+  }
+
+  private void processValue(final StructuredTaskScope<?> scope, final CommitDetails details,
+      final Buffer<CommitDetails> changeAccumulator, final AtomicInteger counter, final Buffer<CommitDetails> renamingAccumulator,
+      final Buffer<CommitInfo> commitAccumulator) {
+    changeAccumulator.add(details, details.fileChanges().size());
+    if (changeAccumulator.hasEnough()) {
+      Threading.submit(scope, () -> writeChanges(changeAccumulator.drain(), counter.incrementAndGet()));
+    }
+    renamingAccumulator.add(details, details.fileRenamings().size());
+    if (renamingAccumulator.hasEnough()) {
+      Threading.submit(scope, () -> writeRenamings(renamingAccumulator.drain(), counter.incrementAndGet()));
+    }
+    commitAccumulator.add(details.commit(), 1);
+    if (commitAccumulator.hasEnough()) {
+      val commits = commitAccumulator.drain();
+      Threading.submit(scope, () -> writeCommits(commits, counter.incrementAndGet()));
+      Threading.submit(scope, () -> writeBranch(commits, counter.incrementAndGet()));
+    }
+  }
+
+  private void flush(final StructuredTaskScope<?> scope, final Buffer<CommitDetails> changeAccumulator,
+      final AtomicInteger counter, final Buffer<CommitDetails> renamingAccumulator, final  Buffer<CommitInfo> commitAccumulator) {
+    if (changeAccumulator.isNotEmpty()) {
+      Threading.submit(scope, () -> writeChanges(changeAccumulator.drain(), counter.incrementAndGet()));
+    }
+    if (renamingAccumulator.isNotEmpty()) {
+      Threading.submit(scope, () -> writeRenamings(renamingAccumulator.drain(), counter.incrementAndGet()));
+    }
+    if (commitAccumulator.isNotEmpty()) {
+      val commits = commitAccumulator.drain();
+      Threading.submit(scope, () -> writeCommits(commits, counter.incrementAndGet()));
+      Threading.submit(scope, () -> writeBranch(commits, counter.incrementAndGet()));
+    }
   }
 
   private void writeChanges(List<CommitDetails> values, int id) {

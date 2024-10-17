@@ -14,12 +14,12 @@ import lombok.val;
 
 @RequiredArgsConstructor
 public class Buffer<E> {
-  private final List<E> buffer = new ArrayList<>();
+  private final List<E> underlying = new ArrayList<>();
   private final int limit;
   private int count = 0;
 
   public void add(final E element, final int size) {
-    buffer.add(element);
+    underlying.add(element);
     this.count += size;
   }
 
@@ -28,16 +28,16 @@ public class Buffer<E> {
   }
 
   public boolean isEmpty() {
-    return this.buffer.isEmpty();
+    return this.underlying.isEmpty();
   }
 
   public boolean isNotEmpty() {
-    return !this.buffer.isEmpty();
+    return !this.underlying.isEmpty();
   }
 
   public List<E> drain() {
-    val result = List.copyOf(this.buffer);
-    this.buffer.clear();
+    val result = List.copyOf(this.underlying);
+    this.underlying.clear();
     this.count = 0;
     return result;
   }

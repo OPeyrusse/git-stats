@@ -36,9 +36,9 @@ public class BranchWriter extends Writer<String> {
   }
 
   @Override
-  protected void fillRecord(Record record, String changes) {
-    record.put("branch", branch);
-    record.put("commit", changes);
+  protected void fillRecord(Record recordToFill, String changes) {
+    recordToFill.put("branch", branch);
+    recordToFill.put("commit", changes);
   }
 
   @WithSpan("Write branch details")

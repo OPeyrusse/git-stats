@@ -10,7 +10,6 @@ package com.activeviam.tooling.gitstats.internal.orchestration;
 import com.activeviam.tooling.gitstats.internal.orchestration.Action.Stop;
 import com.activeviam.tooling.gitstats.internal.orchestration.Action.Value;
 import java.util.List;
-import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
 
 /**

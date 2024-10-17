@@ -7,6 +7,7 @@
 
 package com.activeviam.tooling.gitstats.internal.explorer;
 
+import com.activeviam.tooling.gitstats.ProgramException;
 import com.activeviam.tooling.gitstats.internal.explorer.Shell.Output;
 import com.activeviam.tooling.gitstats.internal.shell.ChangeReader;
 import com.activeviam.tooling.gitstats.internal.shell.CommitDateReader;
@@ -52,7 +53,7 @@ public class ReadCommitDetails {
                 .skip(1)
                 .filter(Predicate.not(String::isBlank))
                 .map(ChangeReader::parseLine)
-                .collect(Collectors.toList()));
+                .toList());
   }
 
   private List<FileRenaming> readFileRenamings() {
@@ -81,7 +82,8 @@ public class ReadCommitDetails {
       return new CommitDetails(
           new CommitInfo(this.commit, dateTask.get()), changesTask.get(), renameTask.get());
     } catch (final InterruptedException e) {
-      throw new RuntimeException("Read interrupted while fetching details", e);
+      Thread.currentThread().interrupt();
+      throw new ProgramException("Read interrupted while fetching details", e);
     }
   }
 
