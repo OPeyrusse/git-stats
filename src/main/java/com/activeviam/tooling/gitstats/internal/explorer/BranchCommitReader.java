@@ -10,6 +10,7 @@ package com.activeviam.tooling.gitstats.internal.explorer;
 import com.activeviam.tooling.gitstats.ProgramException;
 import com.activeviam.tooling.gitstats.internal.explorer.Shell.Output;
 import com.activeviam.tooling.gitstats.internal.orchestration.Action;
+import com.activeviam.tooling.gitstats.internal.orchestration.Action.Value;
 import com.activeviam.tooling.gitstats.internal.orchestration.Queue;
 import io.opentelemetry.api.trace.Span;
 import io.opentelemetry.instrumentation.annotations.WithSpan;
@@ -21,7 +22,6 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Predicate;
 import java.util.logging.Level;
 import java.util.stream.Collectors;
-import java.util.stream.IntStream;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.java.Log;
@@ -50,49 +50,38 @@ public class BranchCommitReader {
 
   public void run() {
     final var increment = 100;
-    IntStream.iterate(0, i -> i < this.historySize, i -> i + increment)
-        .forEach(
-            start -> {
-              if (!stop.get()) {
-                this.readCommits(start, increment);
-              }
-            });
+    String startCommit = getResolvedCommit();
+    for (int i = 0; i < this.historySize; i += increment) {
+      final var commits = this.readCommits(startCommit, increment);
+      final var filteredCommits = commits.stream()
+          .takeWhile(commit -> !commit.equals(this.lastCommit))
+          .toList();
+      filteredCommits.stream().map(Value::new).forEach(this.output::put);
+
+      if (filteredCommits.size() < commits.size()) {
+        break; // We have reached the end of the iteration
+      }
+      startCommit = filteredCommits.getLast();
+    }
     this.output.put(Action.stop());
   }
 
   @WithSpan("Read branch commits")
-  private void readCommits(final int start, final int increment) {
-    log.log(Level.INFO, "Reading commits from {0} to {1}", new Object[] {start, start + increment});
+  private List<String> readCommits(final String startCommit, final int increment) {
+    log.log(Level.INFO, "Reading commits from {0} for #{1}", new Object[]{startCommit, increment});
     Span.current().setAttribute("branch", this.branch);
-    Span.current().setAttribute("start-commit", start);
-    final var end = Math.min(start + increment, this.historySize);
-    Span.current().setAttribute("end-commit", end);
+    Span.current().setAttribute("start-commit", startCommit);
 
-    final var range = commit(end) + ".." + commit(start);
     final var commandOutput =
-        Shell.execute(List.of("git", "log", "--format=%H", range), this.projectDir);
+        Shell.execute(List.of("git", "rev-list", startCommit, "-n", String.valueOf(increment)),
+            this.projectDir);
     final var commits =
         Output.readStream(commandOutput.stdout())
             .lines()
             .filter(Predicate.not(getCommitsToIgnore()::contains))
-            .limit(increment + 1)
             .toList();
-    if (commits.size() > increment) {
-      throw new IllegalStateException("Too many commits returned by " + range);
-    }
-    if (commits.contains(this.lastCommit)) {
-      stop.set(true);
-    } else {
-      commits.stream().map(Action::value).forEach(this.output::put);
-    }
-  }
-
-  private String commit(int index) {
-    if (index == 0) {
-      return getResolvedCommit();
-    } else {
-      return String.format("%s~%d", getResolvedCommit(), index);
-    }
+    Span.current().setAttribute("end-commit", commits.getLast());
+    return commits;
   }
 
   private String resolveStartCommit() {

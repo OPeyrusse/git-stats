@@ -18,8 +18,8 @@ import java.nio.file.Path;
 import java.time.Instant;
 import java.util.List;
 import java.util.Objects;
-import java.util.concurrent.ExecutionException;
 import java.util.concurrent.StructuredTaskScope;
+import java.util.concurrent.StructuredTaskScope.Joiner;
 import java.util.function.Predicate;
 import lombok.val;
 
@@ -73,29 +73,34 @@ public class ReadCommitDetails {
   public CommitDetails read() {
     Span.current().setAttribute("commit", this.commit);
     Span.current().setAttribute("project", this.projectDir.toString());
-    try (val scope = new StructuredTaskScope.ShutdownOnFailure()) {
+    try (val scope = StructuredTaskScope.open(Joiner.allSuccessfulOrThrow())) {
       val dateTask = scope.fork(this::readCommitDate);
       val changesTask = scope.fork(this::readFileChanges);
       val renameTask = scope.fork(this::readFileRenamings);
 
       scope.join();
-      scope.throwIfFailed();
       return new CommitDetails(
           new CommitInfo(this.commit, dateTask.get()), changesTask.get(), renameTask.get());
     } catch (final InterruptedException e) {
       Thread.currentThread().interrupt();
       throw new ProgramException("Read interrupted while fetching details", e);
-    } catch (ExecutionException e) {
-      throw new ProgramException("Failed to read commit details", e);
     }
   }
 
   public record CommitDetails(
-      CommitInfo commit, List<FileChanges> fileChanges, List<FileRenaming> fileRenamings) {}
+      CommitInfo commit, List<FileChanges> fileChanges, List<FileRenaming> fileRenamings) {
 
-  public record CommitInfo(String sha1, Instant date) {}
+  }
 
-  public record FileChanges(String filename, int additions, int deletions) {}
+  public record CommitInfo(String sha1, Instant date) {
 
-  public record FileRenaming(String from, String to) {}
+  }
+
+  public record FileChanges(String filename, int additions, int deletions) {
+
+  }
+
+  public record FileRenaming(String from, String to) {
+
+  }
 }

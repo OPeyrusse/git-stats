@@ -16,10 +16,9 @@ import org.apache.avro.Schema;
 import org.apache.avro.generic.GenericData;
 import org.apache.avro.generic.GenericData.Record;
 import org.apache.avro.generic.GenericRecord;
-import org.apache.hadoop.conf.Configuration;
 import org.apache.parquet.avro.AvroParquetWriter;
 import org.apache.parquet.hadoop.ParquetWriter;
-import org.apache.parquet.hadoop.util.HadoopOutputFile;
+import org.apache.parquet.io.LocalOutputFile;
 
 /**
  * @author ActiveViam
@@ -62,11 +61,9 @@ public abstract class Writer<T> {
   protected abstract void fillRecord(Record recordToFill, T changes);
 
   private ParquetWriter<GenericRecord> createWriter() {
-    final var config = new Configuration();
-    final var path = new org.apache.hadoop.fs.Path(this.outputFile.toString());
     try {
-      final HadoopOutputFile hadoopOutputFile = HadoopOutputFile.fromPath(path, config);
-      return AvroParquetWriter.<GenericRecord>builder(hadoopOutputFile)
+      final var file = new LocalOutputFile(this.outputFile);
+      return AvroParquetWriter.<GenericRecord>builder(file)
           .withSchema(createSchema())
           .withPageWriteChecksumEnabled(false)
           .build();

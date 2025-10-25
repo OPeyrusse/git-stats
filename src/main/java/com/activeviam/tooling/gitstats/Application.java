@@ -41,7 +41,7 @@ public class Application {
     logger.info("Execution time: " + TimeUnit.NANOSECONDS.toSeconds(endTime - startTime) + "s");
   }
 
-  public static void main(final String[] args) {
+  static void main(final String[] args) {
     final var options = defineCli();
     final var app = buildApplication(args, options);
     app.run();
@@ -81,7 +81,7 @@ public class Application {
       cmd = parser.parse(options, args);
     } catch (final ParseException e) {
       logger.severe(e.getMessage());
-      formatter.printHelp("API Mapper", options);
+      formatter.printHelp("Git scanner", options);
       System.exit(1);
       throw new IllegalStateException("Unreachable");
     }
@@ -96,5 +96,7 @@ public class Application {
   }
 
   public record Config(
-      Path projectDirectory, Path outputDirectory, String branch, String startCommit, int count) {}
+      Path projectDirectory, Path outputDirectory, String branch, String startCommit, int count) {
+
+  }
 }

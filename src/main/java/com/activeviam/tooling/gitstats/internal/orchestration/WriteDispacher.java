@@ -29,9 +29,9 @@ public class WriteDispacher {
   private final Queue<Action<WriteCommits>> branchQueue;
 
   public void run() {
-    val changeAccumulator = Accumulator.create(500,this.changeQueue, WriteChangesAction::new);
-    val renamingAccumulator = Accumulator.create(500, this.renamingQueue, WriteRenamingAction::new);
-    val commitAccumulator = Accumulator.create(1000, this.branchQueue, WriteCommits::new);
+    val changeAccumulator = Accumulator.create(2_000_000, this.changeQueue, WriteChangesAction::new);
+    val renamingAccumulator = Accumulator.create(1_000_000, this.renamingQueue, WriteRenamingAction::new);
+    val commitAccumulator = Accumulator.create(1_000_000, this.branchQueue, WriteCommits::new);
     while (true) {
       final var action = this.commitQueue.take();
       switch (action) {
@@ -45,25 +45,35 @@ public class WriteDispacher {
           renamingAccumulator.flush();
           commitAccumulator.flush();
           return;
+        }
       }
     }
   }
-    }
 
-  public record WriteChangesAction(List<CommitDetails> commits) {}
-  public record WriteRenamingAction(List<CommitDetails> commits) {}
-  public record WriteCommits(List<CommitInfo> commits) {}
+  public record WriteChangesAction(List<CommitDetails> commits) {
+
+  }
+
+  public record WriteRenamingAction(List<CommitDetails> commits) {
+
+  }
+
+  public record WriteCommits(List<CommitInfo> commits) {
+
+  }
 
   /**
    * @author ActiveViam
    */
   @RequiredArgsConstructor(access = AccessLevel.PRIVATE)
-  private static class Accumulator<T,U> {
+  private static class Accumulator<T, U> {
+
     private final Buffer<T> buffer;
     private final Queue<Action<U>> queue;
     private final Function<List<T>, U> actionBuilder;
 
-    public static <T, U> Accumulator<T,U> create(final int limit, final Queue<Action<U>> queue, Function<List<T>, U> actionBuilder) {
+    public static <T, U> Accumulator<T, U> create(final int limit, final Queue<Action<U>> queue,
+        Function<List<T>, U> actionBuilder) {
       return new Accumulator<>(new Buffer<>(limit), queue, actionBuilder);
     }
 

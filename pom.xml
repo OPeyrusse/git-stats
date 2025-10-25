@@ -11,8 +11,8 @@
   <name>API mapping</name>
 
   <properties>
-    <maven.compiler.release>22</maven.compiler.release>
-    <lombok.version>1.18.34</lombok.version>
+    <maven.compiler.release>25</maven.compiler.release>
+    <lombok.version>1.18.42</lombok.version>
   </properties>
 
   <dependencies>
@@ -40,27 +40,27 @@
     <dependency>
       <groupId>org.apache.parquet</groupId>
       <artifactId>parquet-avro</artifactId>
-      <version>1.13.1</version>
+      <version>1.16.0</version>
     </dependency>
     <dependency>
       <groupId>org.apache.avro</groupId>
       <artifactId>avro</artifactId>
-      <version>1.11.4</version>
+      <version>1.12.1</version>
     </dependency>
     <dependency>
       <groupId>org.apache.hadoop</groupId>
       <artifactId>hadoop-common</artifactId>
-      <version>3.4.0</version>
+      <version>3.4.2</version>
     </dependency>
     <dependency>
       <groupId>org.apache.hadoop</groupId>
       <artifactId>hadoop-hdfs</artifactId>
-      <version>3.4.0</version>
+      <version>3.4.2</version>
     </dependency>
     <dependency>
       <groupId>org.apache.hadoop</groupId>
       <artifactId>hadoop-mapreduce-client-core</artifactId>
-      <version>3.4.0</version>
+      <version>3.4.2</version>
     </dependency>
     <dependency>
       <groupId>org.junit.jupiter</groupId>
@@ -91,6 +91,12 @@
       <artifactId>logback-classic</artifactId>
       <version>1.5.7</version>
       <scope>runtime</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.jspecify</groupId>
+      <artifactId>jspecify</artifactId>
+      <version>1.0.0</version>
+      <scope>provided</scope>
     </dependency>
   </dependencies>
 

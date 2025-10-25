@@ -25,13 +25,9 @@ import com.activeviam.tooling.gitstats.internal.orchestration.WriteDispacher;
 import com.activeviam.tooling.gitstats.internal.orchestration.WriteDispacher.WriteCommits;
 import java.io.IOException;
 import java.nio.file.Files;
-import java.nio.file.Path;
 import java.util.List;
-import java.util.concurrent.ExecutionException;
 import java.util.concurrent.StructuredTaskScope;
-import java.util.function.IntFunction;
-import java.util.logging.Logger;
-import java.util.stream.IntStream;
+import java.util.concurrent.StructuredTaskScope.Joiner;
 import lombok.RequiredArgsConstructor;
 import lombok.val;
 
@@ -54,10 +50,11 @@ public class PipelineProgram {
       throw new ProgramException("Failed to create output directory", e);
     }
 
-    try (var scope = new StructuredTaskScope.ShutdownOnFailure()) {
+    try (var scope = StructuredTaskScope.open(Joiner.allSuccessfulOrThrow())) {
       final var commitOutput = this.<String>queueOf(20);
       val branchCommitReader =
-          new BranchCommitReader(this.config.projectDirectory(), this.config.branch(), this.config.startCommit(), this.config.count(), commitOutput);
+          new BranchCommitReader(this.config.projectDirectory(), this.config.branch(), this.config.startCommit(),
+              this.config.count(), commitOutput);
       Threading.submit(scope, branchCommitReader::run);
 
       final var pipelineActions = this.<FetchCommit>queueOf(20);
@@ -98,22 +95,20 @@ public class PipelineProgram {
 
       Threading.parallelize(scope, 1, i -> {
         val changePipeline =
-            new ChangeWriterPipeline(changeQueue, this.config.outputDirectory(), "changes-"+i+"-%04d.parquet");
+            new ChangeWriterPipeline(changeQueue, this.config.outputDirectory(), "changes-" + i + "-%04d.parquet");
         return changePipeline::run;
       });
-      Threading.parallelize(scope, 1, i->{
+      Threading.parallelize(scope, 1, i -> {
         val renamingPipeline =
-            new RenameWriterPipeline(renamingQueue, this.config.outputDirectory(), "renamings-"+i+"-%04d.parquet");
+            new RenameWriterPipeline(renamingQueue, this.config.outputDirectory(),
+                "renamings-" + i + "-%04d.parquet");
         return renamingPipeline::run;
       });
 
       scope.join();
-      scope.throwIfFailed();
     } catch (InterruptedException e) {
       Thread.currentThread().interrupt();
       throw new ProgramException("Application execution interrupted", e);
-    } catch (ExecutionException e) {
-      throw new ProgramException("Application failed", e);
     }
   }
 }

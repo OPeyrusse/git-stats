@@ -118,7 +118,7 @@ public class StructuredProgram {
 
   }
 
-  private void processValue(final StructuredTaskScope<?> scope, final CommitDetails details,
+  private void processValue(final StructuredTaskScope<?, ?> scope, final CommitDetails details,
       final Buffer<CommitDetails> changeAccumulator, final AtomicInteger counter, final Buffer<CommitDetails> renamingAccumulator,
       final Buffer<CommitInfo> commitAccumulator) {
     changeAccumulator.add(details, details.fileChanges().size());
@@ -137,7 +137,7 @@ public class StructuredProgram {
     }
   }
 
-  private void flush(final StructuredTaskScope<?> scope, final Buffer<CommitDetails> changeAccumulator,
+  private void flush(final StructuredTaskScope<?, ?> scope, final Buffer<CommitDetails> changeAccumulator,
       final AtomicInteger counter, final Buffer<CommitDetails> renamingAccumulator, final  Buffer<CommitInfo> commitAccumulator) {
     if (changeAccumulator.isNotEmpty()) {
       Threading.submit(scope, () -> writeChanges(changeAccumulator.drain(), counter.incrementAndGet()));

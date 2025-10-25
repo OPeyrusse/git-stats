@@ -9,16 +9,18 @@ package com.activeviam.tooling.gitstats.internal.orchestration;
 
 import java.util.ArrayList;
 import java.util.List;
+import lombok.NonNull;
 import lombok.RequiredArgsConstructor;
 import lombok.val;
 
 @RequiredArgsConstructor
 public class Buffer<E> {
+
   private final List<E> underlying = new ArrayList<>();
   private final int limit;
   private int count = 0;
 
-  public void add(final E element, final int size) {
+  public void add(final @NonNull E element, final int size) {
     underlying.add(element);
     this.count += size;
   }
