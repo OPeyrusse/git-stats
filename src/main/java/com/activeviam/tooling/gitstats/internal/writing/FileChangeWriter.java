@@ -32,12 +32,6 @@ public class FileChangeWriter extends Writer<Map.Entry<String, FileChanges>> {
     return SchemaBuilder.record("FileChange")
         .namespace("com.activeviam.tooling.gitstats")
         .fields()
-        .requiredString("commit")
-        .requiredString("module")
-        .requiredString("filename")
-        .requiredString("path")
-        .requiredLong("additions")
-        .requiredLong("deletions")
         .endRecord();
   }
 

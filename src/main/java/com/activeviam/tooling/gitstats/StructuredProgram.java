@@ -16,8 +16,15 @@ import com.activeviam.tooling.gitstats.internal.explorer.ReadCommitDetails.Commi
 import com.activeviam.tooling.gitstats.internal.orchestration.Action;
 import com.activeviam.tooling.gitstats.internal.orchestration.Action.Stop;
 import com.activeviam.tooling.gitstats.internal.orchestration.Action.Value;
+import com.activeviam.tooling.gitstats.internal.orchestration.BranchCsvWritePipeline;
 import com.activeviam.tooling.gitstats.internal.orchestration.Buffer;
+import com.activeviam.tooling.gitstats.internal.orchestration.ChangeCsvWriterPipeline;
+import com.activeviam.tooling.gitstats.internal.orchestration.CommitCsvWritePipeline;
 import com.activeviam.tooling.gitstats.internal.orchestration.Queue;
+import com.activeviam.tooling.gitstats.internal.orchestration.RenameCsvWriterPipeline;
+import com.activeviam.tooling.gitstats.internal.orchestration.WriteDispacher.WriteChangesAction;
+import com.activeviam.tooling.gitstats.internal.orchestration.WriteDispacher.WriteCommits;
+import com.activeviam.tooling.gitstats.internal.orchestration.WriteDispacher.WriteRenamingAction;
 import com.activeviam.tooling.gitstats.internal.writing.BranchWriter;
 import com.activeviam.tooling.gitstats.internal.writing.CommitWriter;
 import com.activeviam.tooling.gitstats.internal.writing.FileChangeWriter;
@@ -60,10 +67,15 @@ public class StructuredProgram {
       final var commitOutput = this.<String>queueOf(20);
       final var detailsOutput = this.<CommitDetails>queueOf(20);
       val branchCommitReader =
-          new BranchCommitReader(this.config.projectDirectory(), this.config.branch(), this.config.startCommit(), this.config.count(), commitOutput);
+          new BranchCommitReader(this.config.projectDirectory(), this.config.branch(), this.config.startCommit(),
+              this.config.count(), commitOutput);
       Threading.submit(scope, branchCommitReader::run);
-      Threading.submit(scope, () -> processCommits(commitOutput,detailsOutput));
-      Threading.submit(scope, () -> processDetails(detailsOutput));
+      Threading.submit(scope, () -> processCommits(commitOutput, detailsOutput));
+      /**
+       Threading.submit(scope, () -> processDetails(detailsOutput));
+       /*/
+      Threading.submit(scope, () -> processDetailsToCsv(detailsOutput));
+      //*/
     });
   }
 
@@ -88,6 +100,7 @@ public class StructuredProgram {
   }
 
   private final Set<String> commits = Collections.synchronizedSet(new HashSet<>());
+
   private void fetchCommit(Queue<Action<CommitDetails>> output, String commit) {
     commits.add(commit);
     val reader = new ReadCommitDetails(this.config.projectDirectory(), commit);
@@ -100,7 +113,7 @@ public class StructuredProgram {
     Threading.execute(scope -> {
       val counter = new AtomicInteger(0);
       val changeAccumulator = new Buffer<CommitDetails>(2000);
-      val renamingAccumulator = new Buffer<CommitDetails>( 5000);
+      val renamingAccumulator = new Buffer<CommitDetails>(5000);
       val commitAccumulator = new Buffer<CommitInfo>(10000);
       while (true) {
         final var action = input.take();
@@ -113,13 +126,14 @@ public class StructuredProgram {
             return;
           }
         }
-        }
+      }
     });
 
   }
 
   private void processValue(final StructuredTaskScope<?, ?> scope, final CommitDetails details,
-      final Buffer<CommitDetails> changeAccumulator, final AtomicInteger counter, final Buffer<CommitDetails> renamingAccumulator,
+      final Buffer<CommitDetails> changeAccumulator, final AtomicInteger counter,
+      final Buffer<CommitDetails> renamingAccumulator,
       final Buffer<CommitInfo> commitAccumulator) {
     changeAccumulator.add(details, details.fileChanges().size());
     if (changeAccumulator.hasEnough()) {
@@ -138,7 +152,8 @@ public class StructuredProgram {
   }
 
   private void flush(final StructuredTaskScope<?, ?> scope, final Buffer<CommitDetails> changeAccumulator,
-      final AtomicInteger counter, final Buffer<CommitDetails> renamingAccumulator, final  Buffer<CommitInfo> commitAccumulator) {
+      final AtomicInteger counter, final Buffer<CommitDetails> renamingAccumulator,
+      final Buffer<CommitInfo> commitAccumulator) {
     if (changeAccumulator.isNotEmpty()) {
       Threading.submit(scope, () -> writeChanges(changeAccumulator.drain(), counter.incrementAndGet()));
     }
@@ -153,11 +168,12 @@ public class StructuredProgram {
   }
 
   private void writeChanges(List<CommitDetails> values, int id) {
-    val writer =new FileChangeWriter(
+    val writer = new FileChangeWriter(
         PayloadImpl.streaming(values, s -> s.flatMap(
-                        details ->
-                            details.fileChanges().stream()
-                                .map(change -> Map.entry(details.commit().sha1(), change)))), createFileName("changes-%04d.parquet", id));
+            details ->
+                details.fileChanges().stream()
+                    .map(change -> Map.entry(details.commit().sha1(), change)))),
+        createFileName("changes-%04d.parquet", id));
     writer.write();
   }
 
@@ -165,8 +181,8 @@ public class StructuredProgram {
     return this.config.outputDirectory().resolve(String.format(template, id));
   }
 
-  private void writeRenamings(List<CommitDetails> values, int id ) {
-    val writer =new FileRenamingWriter(
+  private void writeRenamings(List<CommitDetails> values, int id) {
+    val writer = new FileRenamingWriter(
         PayloadImpl.streaming(values, s -> s.flatMap(
             details ->
                 details.fileRenamings().stream()
@@ -176,15 +192,15 @@ public class StructuredProgram {
   }
 
   private void writeCommits(List<CommitInfo> values, int id) {
-    val writer  = new CommitWriter(
+    val writer = new CommitWriter(
         createFileName("commits-%04d.parquet", id),
-       PayloadImpl.mapping(values, Function.identity())
+        PayloadImpl.mapping(values, Function.identity())
     );
     writer.write();
   }
 
   private void writeBranch(List<CommitInfo> values, int id) {
-    val writer  = new BranchWriter(
+    val writer = new BranchWriter(
         createFileName("branch-%04d.parquet", id),
         this.config.branch(),
         PayloadImpl.mapping(values, CommitInfo::sha1)
@@ -192,5 +208,52 @@ public class StructuredProgram {
     writer.write();
   }
 
+  private void processDetailsToCsv(final Queue<Action<CommitDetails>> input) {
+    Threading.execute(scope -> {
+      val branchQueue = new Queue<Action<WriteCommits>>(20);
+      val branchWriter =
+          new BranchCsvWritePipeline(
+              branchQueue, this.config.outputDirectory(), "branches-%04d.csv", this.config.branch());
+      Threading.submit(scope, branchWriter);
+
+      val changeQueue = new Queue<Action<WriteChangesAction>>(20);
+      val changeWriter =
+          new ChangeCsvWriterPipeline(
+              changeQueue, this.config.outputDirectory(), "changes-%04d.csv");
+      Threading.submit(scope, changeWriter);
+
+      val commitQueue = new Queue<Action<WriteCommits>>(20);
+      val commitWriter = new CommitCsvWritePipeline(
+          commitQueue, this.config.outputDirectory(), "commits-%04d.csv");
+      Threading.submit(scope, commitWriter);
+
+      val renameQueue = new Queue<Action<WriteRenamingAction>>(20);
+      val renameWriter = new RenameCsvWriterPipeline(
+          renameQueue, this.config.outputDirectory(), "renamings-%04d.csv");
+      Threading.submit(scope, renameWriter);
+
+      Threading.submit(scope, () -> {
+        while (true) {
+          final var action = input.take();
+          switch (action) {
+            case Value(final var details) -> {
+              final var writeCommits = new WriteCommits(List.of(details.commit()));
+              branchQueue.put(new Value<>(writeCommits));
+              commitQueue.put(new Value<>(writeCommits));
+              changeQueue.put(new Value<>(new WriteChangesAction(List.of(details))));
+              renameQueue.put(new Value<>(new WriteRenamingAction(List.of(details))));
+            }
+            case Stop<?> _ -> {
+              branchQueue.put(Stop.create());
+              commitQueue.put(Stop.create());
+              changeQueue.put(Stop.create());
+              renameQueue.put(Stop.create());
+              return;
+            }
+          }
+        }
+      });
+    });
+  }
 
 }

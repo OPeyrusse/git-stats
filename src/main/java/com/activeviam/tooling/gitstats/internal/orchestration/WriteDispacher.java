@@ -29,9 +29,9 @@ public class WriteDispacher {
   private final Queue<Action<WriteCommits>> branchQueue;
 
   public void run() {
-    val changeAccumulator = Accumulator.create(2_000_000, this.changeQueue, WriteChangesAction::new);
-    val renamingAccumulator = Accumulator.create(1_000_000, this.renamingQueue, WriteRenamingAction::new);
-    val commitAccumulator = Accumulator.create(1_000_000, this.branchQueue, WriteCommits::new);
+    val changeAccumulator = Accumulator.create(2000, this.changeQueue, WriteChangesAction::new);
+    val renamingAccumulator = Accumulator.create(1000, this.renamingQueue, WriteRenamingAction::new);
+    val commitAccumulator = Accumulator.create(1000, this.branchQueue, WriteCommits::new);
     while (true) {
       final var action = this.commitQueue.take();
       switch (action) {

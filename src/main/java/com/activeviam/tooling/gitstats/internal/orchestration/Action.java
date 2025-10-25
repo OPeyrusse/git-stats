@@ -39,6 +39,11 @@ public sealed interface Action<T> permits Stop, Value {
 
     private static final Stop<Object> INSTANCE = new Stop<>();
 
+    @SuppressWarnings("unchecked")
+    public static <T> Stop<T> create() {
+      return (Stop<T>) INSTANCE;
+    }
+
     @Override
     public Stream<T> unpack() {
       return Stream.empty();

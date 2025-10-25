@@ -12,6 +12,7 @@ import com.activeviam.tooling.gitstats.internal.Threading;
 import com.activeviam.tooling.gitstats.internal.explorer.BranchCommitReader;
 import com.activeviam.tooling.gitstats.internal.explorer.ReadCommitDetails.CommitDetails;
 import com.activeviam.tooling.gitstats.internal.orchestration.Action;
+import com.activeviam.tooling.gitstats.internal.orchestration.BranchCsvWritePipeline;
 import com.activeviam.tooling.gitstats.internal.orchestration.BranchWritePipeline;
 import com.activeviam.tooling.gitstats.internal.orchestration.ChangeWriterPipeline;
 import com.activeviam.tooling.gitstats.internal.orchestration.CommitWritePipeline;
@@ -22,7 +23,9 @@ import com.activeviam.tooling.gitstats.internal.orchestration.Queue;
 import com.activeviam.tooling.gitstats.internal.orchestration.ReadCommitPipeline;
 import com.activeviam.tooling.gitstats.internal.orchestration.RenameWriterPipeline;
 import com.activeviam.tooling.gitstats.internal.orchestration.WriteDispacher;
+import com.activeviam.tooling.gitstats.internal.orchestration.WriteDispacher.WriteChangesAction;
 import com.activeviam.tooling.gitstats.internal.orchestration.WriteDispacher.WriteCommits;
+import com.activeviam.tooling.gitstats.internal.orchestration.WriteDispacher.WriteRenamingAction;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.util.List;
@@ -84,31 +87,72 @@ public class PipelineProgram {
           new Multiplexer<>(commitQueue, List.of(commitWriteQueue, branchWriteQueue));
       Threading.submit(scope, commitMultiplex::run);
 
-      val branchPipeline =
-          new BranchWritePipeline(
-              branchWriteQueue, this.config.outputDirectory(), "branches-%04d.parquet", this.config.branch());
-      Threading.submit(scope, branchPipeline::run);
-
-      val commitPipeline =
-          new CommitWritePipeline(commitWriteQueue, this.config.outputDirectory(), "commits-%04d.parquet");
-      Threading.submit(scope, commitPipeline::run);
-
-      Threading.parallelize(scope, 1, i -> {
-        val changePipeline =
-            new ChangeWriterPipeline(changeQueue, this.config.outputDirectory(), "changes-" + i + "-%04d.parquet");
-        return changePipeline::run;
-      });
-      Threading.parallelize(scope, 1, i -> {
-        val renamingPipeline =
-            new RenameWriterPipeline(renamingQueue, this.config.outputDirectory(),
-                "renamings-" + i + "-%04d.parquet");
-        return renamingPipeline::run;
-      });
+      if (false) {
+        createParquetPipelines(scope, branchWriteQueue, commitWriteQueue, changeQueue, renamingQueue);
+      } else {
+        createCsvPipelines(scope, branchWriteQueue, commitWriteQueue, changeQueue, renamingQueue);
+      }
 
       scope.join();
     } catch (InterruptedException e) {
       Thread.currentThread().interrupt();
       throw new ProgramException("Application execution interrupted", e);
     }
+  }
+
+  private void createParquetPipelines(
+      final StructuredTaskScope<?, ?> scope,
+      final Queue<Action<WriteCommits>> branchWriteQueue,
+      final Queue<Action<WriteCommits>> commitWriteQueue,
+      final Queue<Action<WriteChangesAction>> changeQueue,
+      final Queue<Action<WriteRenamingAction>> renamingQueue) {
+    val branchPipeline =
+        new BranchWritePipeline(
+            branchWriteQueue, this.config.outputDirectory(), "branches-%04d.parquet", this.config.branch());
+    Threading.submit(scope, branchPipeline::run);
+
+    val commitPipeline =
+        new CommitWritePipeline(commitWriteQueue, this.config.outputDirectory(), "commits-%04d.parquet");
+    Threading.submit(scope, commitPipeline::run);
+
+    Threading.parallelize(scope, 1, i -> {
+      val changePipeline =
+          new ChangeWriterPipeline(changeQueue, this.config.outputDirectory(), "changes-" + i + "-%04d.parquet");
+      return changePipeline::run;
+    });
+    Threading.parallelize(scope, 1, i -> {
+      val renamingPipeline =
+          new RenameWriterPipeline(renamingQueue, this.config.outputDirectory(),
+              "renamings-" + i + "-%04d.parquet");
+      return renamingPipeline::run;
+    });
+  }
+
+  private void createCsvPipelines(
+      final StructuredTaskScope<?, ?> scope,
+      final Queue<Action<WriteCommits>> branchWriteQueue,
+      final Queue<Action<WriteCommits>> commitWriteQueue,
+      final Queue<Action<WriteChangesAction>> changeQueue,
+      final Queue<Action<WriteRenamingAction>> renamingQueue) {
+    val branchPipeline =
+        new BranchCsvWritePipeline(
+            branchWriteQueue, this.config.outputDirectory(), "branches-%04d.csv", this.config.branch());
+    Threading.submit(scope, branchPipeline);
+
+//    val commitPipeline =
+//        new CommitCsvWritePipeline(commitWriteQueue, this.config.outputDirectory(), "commits-%04d.csv");
+//    Threading.submit(scope, commitPipeline::run);
+//
+//    Threading.parallelize(scope, 4, i -> {
+//      val changePipeline =
+//          new ChangeCsvWriterPipeline(changeQueue, this.config.outputDirectory(), "changes-" + i + "-%04d.csv");
+//      return changePipeline::run;
+//    });
+//    Threading.parallelize(scope, 2, i -> {
+//      val renamingPipeline =
+//          new RenameCsvWriterPipeline(renamingQueue, this.config.outputDirectory(),
+//              "renamings-" + i + "-%04d.csv");
+//      return renamingPipeline::run;
+//    });
   }
 }
