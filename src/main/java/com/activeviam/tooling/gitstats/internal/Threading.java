@@ -32,7 +32,9 @@ public class Threading {
   }
 
   public static void parallelize(
-      final StructuredTaskScope<?, ?> scope, final int count, final IntFunction<Runnable> generator) {
+      final StructuredTaskScope<?, ?> scope,
+      final int count,
+      final IntFunction<Runnable> generator) {
     IntStream.range(0, count).mapToObj(generator::apply).forEach(action -> submit(scope, action));
   }
 

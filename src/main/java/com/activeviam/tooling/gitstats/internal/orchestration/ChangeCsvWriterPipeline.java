@@ -20,8 +20,8 @@ import lombok.val;
  */
 public class ChangeCsvWriterPipeline extends ACsvWritePipeline<WriteChangesAction> {
 
-  public ChangeCsvWriterPipeline(Queue<Action<WriteChangesAction>> queue, Path outputDirectory, String filePattern
-  ) {
+  public ChangeCsvWriterPipeline(
+      Queue<Action<WriteChangesAction>> queue, Path outputDirectory, String filePattern) {
     super(queue, outputDirectory, filePattern, 1 << 14);
   }
 
@@ -66,5 +66,4 @@ public class ChangeCsvWriterPipeline extends ACsvWritePipeline<WriteChangesActio
   private static String computeFileName(FileChanges changes) {
     return Path.of(changes.filename()).getFileName().toString();
   }
-
 }

@@ -53,9 +53,8 @@ public class BranchCommitReader {
     String startCommit = getResolvedCommit();
     for (int i = 0; i < this.historySize; i += increment) {
       final var commits = this.readCommits(startCommit, increment);
-      final var filteredCommits = commits.stream()
-          .takeWhile(commit -> !commit.equals(this.lastCommit))
-          .toList();
+      final var filteredCommits =
+          commits.stream().takeWhile(commit -> !commit.equals(this.lastCommit)).toList();
       filteredCommits.stream().map(Value::new).forEach(this.output::put);
 
       if (filteredCommits.size() < commits.size()) {
@@ -68,12 +67,13 @@ public class BranchCommitReader {
 
   @WithSpan("Read branch commits")
   private List<String> readCommits(final String startCommit, final int increment) {
-    log.log(Level.INFO, "Reading commits from {0} for #{1}", new Object[]{startCommit, increment});
+    log.log(Level.INFO, "Reading commits from {0} for #{1}", new Object[] {startCommit, increment});
     Span.current().setAttribute("branch", this.branch);
     Span.current().setAttribute("start-commit", startCommit);
 
     final var commandOutput =
-        Shell.execute(List.of("git", "rev-list", startCommit, "-n", String.valueOf(increment)),
+        Shell.execute(
+            List.of("git", "rev-list", startCommit, "-n", String.valueOf(increment)),
             this.projectDir);
     final var commits =
         Output.readStream(commandOutput.stdout())

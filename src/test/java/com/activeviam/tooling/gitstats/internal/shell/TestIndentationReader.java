@@ -106,7 +106,8 @@ class TestIndentationReader {
     @Test
     void twoTabUnit() {
       // 3 tabs with 2-tab indent → floor(3/2) = 1
-      Assertions.assertThat(IndentationReader.countIndentLevels("\t\t\thello", "\t\t")).isEqualTo(1);
+      Assertions.assertThat(IndentationReader.countIndentLevels("\t\t\thello", "\t\t"))
+          .isEqualTo(1);
     }
   }
 
@@ -131,11 +132,42 @@ class TestIndentationReader {
   }
 
   @Nested
+  class CountBumps {
+
+    @Test
+    void simpleBump() {
+      Assertions.assertThat(IndentationReader.countBumps(List.of(0, 1, 0))).isEqualTo(1);
+    }
+
+    @Test
+    void twoBumps() {
+      Assertions.assertThat(IndentationReader.countBumps(List.of(0, 1, 2, 1, 1, 2, 1, 0)))
+          .isEqualTo(2);
+    }
+
+    @Test
+    void noBumpsFlat() {
+      Assertions.assertThat(IndentationReader.countBumps(List.of(0, 0, 0))).isEqualTo(0);
+    }
+
+    @Test
+    void onlyIncreasing() {
+      Assertions.assertThat(IndentationReader.countBumps(List.of(0, 1, 2, 3))).isEqualTo(0);
+    }
+
+    @Test
+    void plateauThenDecrease() {
+      Assertions.assertThat(IndentationReader.countBumps(List.of(0, 1, 1, 0))).isEqualTo(1);
+    }
+  }
+
+  @Nested
   class ParseOutput {
 
     @Test
     void singleJavaFile() {
-      val diff = """
+      val diff =
+          """
           diff --git a/dev/null b/src/Main.java
           --- /dev/null
           +++ b/src/Main.java
@@ -157,11 +189,14 @@ class TestIndentationReader {
       // Lines: 0, 1, 2, 1, 0 → mean = 4/5 = 0.8, median = 1
       Assertions.assertThat(stats.meanIndent()).isCloseTo(0.8, Assertions.within(0.01));
       Assertions.assertThat(stats.medianIndent()).isEqualTo(1);
+      // Lines: 0, 1, 2, 1, 0 → 1 bump (rise 0→1→2, then fall 2→1→0)
+      Assertions.assertThat(stats.bumps()).isEqualTo(1);
     }
 
     @Test
     void blankLinesExcluded() {
-      val diff = """
+      val diff =
+          """
           diff --git a/dev/null b/src/Main.java
           --- /dev/null
           +++ b/src/Main.java
@@ -183,7 +218,8 @@ class TestIndentationReader {
 
     @Test
     void nonJavaFilesIgnored() {
-      val diff = """
+      val diff =
+          """
           diff --git a/dev/null b/readme.md
           --- /dev/null
           +++ b/readme.md
@@ -199,7 +235,8 @@ class TestIndentationReader {
 
     @Test
     void multipleFiles() {
-      val diff = """
+      val diff =
+          """
           diff --git a/dev/null b/src/A.java
           --- /dev/null
           +++ b/src/A.java

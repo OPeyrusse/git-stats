@@ -35,7 +35,8 @@ public class ReadCommitDetails {
   private final String commit;
   private final IndentSpec indentSpec;
 
-  public ReadCommitDetails(final Path projectDir, final String commit, final IndentSpec indentSpec) {
+  public ReadCommitDetails(
+      final Path projectDir, final String commit, final IndentSpec indentSpec) {
     this.projectDir = projectDir;
     this.commit = commit;
     this.indentSpec = indentSpec;
@@ -79,20 +80,14 @@ public class ReadCommitDetails {
 
     return Shell.Output.consumeStdout(
         process,
-        reader ->
-            reader
-                .lines()
-                .map(LineCountReader::parseLine)
-                .filter(Objects::nonNull)
-                .toList());
+        reader -> reader.lines().map(LineCountReader::parseLine).filter(Objects::nonNull).toList());
   }
 
   private List<FileIndentationStats> readFileIndentation() {
     val process = Shell.start(IndentationReader.getCommand(this.commit), this.projectDir);
 
     return Shell.Output.consumeStdout(
-        process,
-        reader -> IndentationReader.parseOutput(reader, this.indentSpec));
+        process, reader -> IndentationReader.parseOutput(reader, this.indentSpec));
   }
 
   @WithSpan("Read commit details")
@@ -108,8 +103,11 @@ public class ReadCommitDetails {
 
       scope.join();
       return new CommitDetails(
-          new CommitInfo(this.commit, dateTask.get()), changesTask.get(), renameTask.get(),
-          lineCountTask.get(), indentTask.get());
+          new CommitInfo(this.commit, dateTask.get()),
+          changesTask.get(),
+          renameTask.get(),
+          lineCountTask.get(),
+          indentTask.get());
     } catch (final InterruptedException e) {
       Thread.currentThread().interrupt();
       throw new ProgramException("Read interrupted while fetching details", e);
@@ -117,28 +115,20 @@ public class ReadCommitDetails {
   }
 
   public record CommitDetails(
-      CommitInfo commit, List<FileChanges> fileChanges, List<FileRenaming> fileRenamings,
-      List<FileLineCount> fileLineCounts, List<FileIndentationStats> fileIndentations) {
+      CommitInfo commit,
+      List<FileChanges> fileChanges,
+      List<FileRenaming> fileRenamings,
+      List<FileLineCount> fileLineCounts,
+      List<FileIndentationStats> fileIndentations) {}
 
-  }
+  public record CommitInfo(String sha1, Instant date) {}
 
-  public record CommitInfo(String sha1, Instant date) {
+  public record FileChanges(String filename, int additions, int deletions) {}
 
-  }
+  public record FileRenaming(String from, String to) {}
 
-  public record FileChanges(String filename, int additions, int deletions) {
+  public record FileLineCount(String path, int lineCount) {}
 
-  }
-
-  public record FileRenaming(String from, String to) {
-
-  }
-
-  public record FileLineCount(String path, int lineCount) {
-
-  }
-
-  public record FileIndentationStats(String path, int minIndent, int maxIndent, double meanIndent, int medianIndent) {
-
-  }
+  public record FileIndentationStats(
+      String path, int minIndent, int maxIndent, double meanIndent, int medianIndent, int bumps) {}
 }

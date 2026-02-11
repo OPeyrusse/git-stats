@@ -17,7 +17,8 @@ import lombok.val;
  */
 public class LinesCsvWriterPipeline extends ACsvWritePipeline<WriteLinesAction> {
 
-  public LinesCsvWriterPipeline(Queue<Action<WriteLinesAction>> queue, Path outputDirectory, String filePattern) {
+  public LinesCsvWriterPipeline(
+      Queue<Action<WriteLinesAction>> queue, Path outputDirectory, String filePattern) {
     super(queue, outputDirectory, filePattern, 1 << 16);
   }
 
@@ -32,10 +33,7 @@ public class LinesCsvWriterPipeline extends ACsvWritePipeline<WriteLinesAction> 
     for (val details : command.commits()) {
       for (val fileLineCount : details.fileLineCounts()) {
         writer.printf(
-            "%s,%s,%d%n",
-            details.commit().sha1(),
-            fileLineCount.path(),
-            fileLineCount.lineCount());
+            "%s,%s,%d%n", details.commit().sha1(), fileLineCount.path(), fileLineCount.lineCount());
         lines++;
       }
     }

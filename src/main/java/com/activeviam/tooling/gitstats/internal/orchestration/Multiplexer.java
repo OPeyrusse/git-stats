@@ -32,15 +32,14 @@ public final class Multiplexer<T> {
         case Stop<?> _ -> {
           forward(action);
           return;
-          }
-          }
+        }
+      }
     }
   }
 
   private void forward(final Action<T> action) {
-        for (Queue<Action<T>> target : this.targets) {
-            target.put(action);
-        }
-      }
-
+    for (Queue<Action<T>> target : this.targets) {
+      target.put(action);
+    }
+  }
 }

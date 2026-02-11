@@ -31,11 +31,8 @@ public class CommitCsvWritePipeline extends ACsvWritePipeline<WriteCommits> {
   @Override
   protected int processCommand(WriteCommits command, PrintWriter writer) {
     for (final var commit : command.commits()) {
-      writer.printf("%s,%d,%s%n",
-          commit.sha1(),
-          commit.date().getEpochSecond(),
-          getDate(commit.date())
-      );
+      writer.printf(
+          "%s,%d,%s%n", commit.sha1(), commit.date().getEpochSecond(), getDate(commit.date()));
     }
     return command.commits().size();
   }

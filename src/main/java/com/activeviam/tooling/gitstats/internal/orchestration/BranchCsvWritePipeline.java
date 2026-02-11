@@ -18,8 +18,11 @@ public final class BranchCsvWritePipeline extends ACsvWritePipeline<WriteCommits
 
   private final String branch;
 
-  public BranchCsvWritePipeline(Queue<Action<WriteCommits>> queue, Path outputDirectory,
-      String filePattern, final String branch) {
+  public BranchCsvWritePipeline(
+      Queue<Action<WriteCommits>> queue,
+      Path outputDirectory,
+      String filePattern,
+      final String branch) {
     super(queue, outputDirectory, filePattern, 1 << 22);
     this.branch = branch;
   }
@@ -36,5 +39,4 @@ public final class BranchCsvWritePipeline extends ACsvWritePipeline<WriteCommits
     }
     return command.commits().size();
   }
-
 }

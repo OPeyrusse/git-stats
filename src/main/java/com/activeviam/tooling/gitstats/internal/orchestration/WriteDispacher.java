@@ -30,7 +30,8 @@ public class WriteDispacher {
 
   public void run() {
     val changeAccumulator = Accumulator.create(2000, this.changeQueue, WriteChangesAction::new);
-    val renamingAccumulator = Accumulator.create(1000, this.renamingQueue, WriteRenamingAction::new);
+    val renamingAccumulator =
+        Accumulator.create(1000, this.renamingQueue, WriteRenamingAction::new);
     val commitAccumulator = Accumulator.create(1000, this.branchQueue, WriteCommits::new);
     while (true) {
       final var action = this.commitQueue.take();
@@ -50,25 +51,15 @@ public class WriteDispacher {
     }
   }
 
-  public record WriteChangesAction(List<CommitDetails> commits) {
+  public record WriteChangesAction(List<CommitDetails> commits) {}
 
-  }
+  public record WriteRenamingAction(List<CommitDetails> commits) {}
 
-  public record WriteRenamingAction(List<CommitDetails> commits) {
+  public record WriteCommits(List<CommitInfo> commits) {}
 
-  }
+  public record WriteLinesAction(List<CommitDetails> commits) {}
 
-  public record WriteCommits(List<CommitInfo> commits) {
-
-  }
-
-  public record WriteLinesAction(List<CommitDetails> commits) {
-
-  }
-
-  public record WriteIndentationAction(List<CommitDetails> commits) {
-
-  }
+  public record WriteIndentationAction(List<CommitDetails> commits) {}
 
   /**
    * @author ActiveViam
@@ -80,8 +71,8 @@ public class WriteDispacher {
     private final Queue<Action<U>> queue;
     private final Function<List<T>, U> actionBuilder;
 
-    public static <T, U> Accumulator<T, U> create(final int limit, final Queue<Action<U>> queue,
-        Function<List<T>, U> actionBuilder) {
+    public static <T, U> Accumulator<T, U> create(
+        final int limit, final Queue<Action<U>> queue, Function<List<T>, U> actionBuilder) {
       return new Accumulator<>(new Buffer<>(limit), queue, actionBuilder);
     }
 

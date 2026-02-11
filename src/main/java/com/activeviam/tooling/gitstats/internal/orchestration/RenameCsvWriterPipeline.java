@@ -32,15 +32,10 @@ public class RenameCsvWriterPipeline extends ACsvWritePipeline<WriteRenamingActi
     int lines = 0;
     for (val details : command.commits()) {
       for (val change : details.fileRenamings()) {
-        writer.printf(
-            "%s,%s,%s%n",
-            details.commit().sha1(),
-            change.from(),
-            change.to());
+        writer.printf("%s,%s,%s%n", details.commit().sha1(), change.from(), change.to());
         lines++;
       }
     }
     return lines;
   }
-
 }

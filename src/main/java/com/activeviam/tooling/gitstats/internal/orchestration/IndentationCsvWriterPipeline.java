@@ -17,14 +17,14 @@ import lombok.val;
  */
 public class IndentationCsvWriterPipeline extends ACsvWritePipeline<WriteIndentationAction> {
 
-  public IndentationCsvWriterPipeline(Queue<Action<WriteIndentationAction>> queue, Path outputDirectory,
-      String filePattern) {
+  public IndentationCsvWriterPipeline(
+      Queue<Action<WriteIndentationAction>> queue, Path outputDirectory, String filePattern) {
     super(queue, outputDirectory, filePattern, 1 << 16);
   }
 
   @Override
   protected void writeHeader(PrintWriter writer) {
-    writer.println("commit,path,min_indent,max_indent,mean_indent,median_indent");
+    writer.println("commit,path,min_indent,max_indent,mean_indent,median_indent,bumps");
   }
 
   @Override
@@ -33,13 +33,14 @@ public class IndentationCsvWriterPipeline extends ACsvWritePipeline<WriteIndenta
     for (val details : command.commits()) {
       for (val stats : details.fileIndentations()) {
         writer.printf(
-            "%s,%s,%d,%d,%.2f,%d%n",
+            "%s,%s,%d,%d,%.2f,%d,%d%n",
             details.commit().sha1(),
             stats.path(),
             stats.minIndent(),
             stats.maxIndent(),
             stats.meanIndent(),
-            stats.medianIndent());
+            stats.medianIndent(),
+            stats.bumps());
         lines++;
       }
     }

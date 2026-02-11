@@ -27,33 +27,51 @@ public class Application implements Callable<Integer> {
 
   static final Logger logger = Logger.getLogger(Application.class.getName());
 
-  @Option(names = {"-p", "--project"}, required = true, description = "Project to scan")
+  @Option(
+      names = {"-p", "--project"},
+      required = true,
+      description = "Project to scan")
   private Path projectDirectory;
 
-  @Option(names = {"-o", "--output"}, required = true, description = "Output directory")
+  @Option(
+      names = {"-o", "--output"},
+      required = true,
+      description = "Output directory")
   private Path outputDirectory;
 
-  @Option(names = {"-b", "--branch"}, required = true, description = "Branch to inspect")
+  @Option(
+      names = {"-b", "--branch"},
+      required = true,
+      description = "Branch to inspect")
   private String branch;
 
-  @Option(names = {"-s", "--start"}, description = "Start commit")
+  @Option(
+      names = {"-s", "--start"},
+      description = "Start commit")
   private String startCommit;
 
-  @Option(names = {"-n", "--count"}, defaultValue = "10", description = "Number of commits to collect")
+  @Option(
+      names = {"-n", "--count"},
+      defaultValue = "10",
+      description = "Number of commits to collect")
   private int count;
 
-  @Option(names = {"-i", "--indent"}, required = true, description = "Indent unit: <number><t|s> (e.g. 2t, 4s)")
+  @Option(
+      names = {"-i", "--indent"},
+      required = true,
+      description = "Indent unit: <number><t|s> (e.g. 2t, 4s)")
   private String indent;
 
   @Override
   public Integer call() {
-    val config = new Config(
-        projectDirectory,
-        outputDirectory,
-        branch,
-        startCommit != null ? startCommit : branch,
-        count,
-        IndentSpec.parse(indent));
+    val config =
+        new Config(
+            projectDirectory,
+            outputDirectory,
+            branch,
+            startCommit != null ? startCommit : branch,
+            count,
+            IndentSpec.parse(indent));
     val startTime = System.nanoTime();
     val pipeline = new StructuredProgram(config);
     pipeline.run();
@@ -67,10 +85,12 @@ public class Application implements Callable<Integer> {
   }
 
   public record Config(
-      Path projectDirectory, Path outputDirectory, String branch, String startCommit, int count,
-      IndentSpec indentSpec) {
-
-  }
+      Path projectDirectory,
+      Path outputDirectory,
+      String branch,
+      String startCommit,
+      int count,
+      IndentSpec indentSpec) {}
 
   public record IndentSpec(int size, char type) {
 

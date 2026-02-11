@@ -84,5 +84,4 @@ abstract class ACsvWritePipeline<T> implements Runnable {
   private String generateFileName() {
     return String.format(this.filePattern, this.count++);
   }
-
 }

@@ -29,13 +29,14 @@ public class ReadCommitPipeline {
     while (true) {
       final var action = this.source.take();
       switch (action) {
-        case Value(final var commit) -> this.target.put(Action.value(new FetchCommit(this.projectDirectory, commit, this.indentSpec)));
+        case Value(final var commit) ->
+            this.target.put(
+                Action.value(new FetchCommit(this.projectDirectory, commit, this.indentSpec)));
         case Stop<?> _ -> {
           this.target.put(Action.stop());
           return;
+        }
       }
     }
   }
-    }
-
 }

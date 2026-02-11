@@ -26,20 +26,20 @@ public class FetchCommitPipeline {
 
   public void run() {
     while (true) {
-        final var action = this.commitQueue.take();
-        switch (action) {
-          case Value(FetchCommit(final var gitDir, final var commit, final var indentSpec)) -> {
-            final var infoReader = new ReadCommitDetails(gitDir, commit, indentSpec);
-            final var info = infoReader.read();
-            this.infoQueue.put(Action.value(info));
-          }
-          case Stop<?> _ -> {
-            this.infoQueue.put(Action.stop());
-            return;
+      final var action = this.commitQueue.take();
+      switch (action) {
+        case Value(FetchCommit(final var gitDir, final var commit, final var indentSpec)) -> {
+          final var infoReader = new ReadCommitDetails(gitDir, commit, indentSpec);
+          final var info = infoReader.read();
+          this.infoQueue.put(Action.value(info));
         }
+        case Stop<?> _ -> {
+          this.infoQueue.put(Action.stop());
+          return;
         }
-        }
+      }
+    }
   }
 
-  public record FetchCommit(Path gitDir, String commit, IndentSpec indentSpec)  {}
+  public record FetchCommit(Path gitDir, String commit, IndentSpec indentSpec) {}
 }
