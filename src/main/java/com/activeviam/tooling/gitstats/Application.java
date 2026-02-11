@@ -8,29 +8,52 @@
 package com.activeviam.tooling.gitstats;
 
 import java.nio.file.Path;
-import java.util.Optional;
+import java.util.concurrent.Callable;
 import java.util.concurrent.TimeUnit;
 import java.util.logging.Logger;
-import lombok.RequiredArgsConstructor;
 import lombok.val;
-import org.apache.commons.cli.CommandLine;
-import org.apache.commons.cli.DefaultParser;
-import org.apache.commons.cli.HelpFormatter;
-import org.apache.commons.cli.Option;
-import org.apache.commons.cli.Options;
-import org.apache.commons.cli.ParseException;
+import picocli.CommandLine;
+import picocli.CommandLine.Command;
+import picocli.CommandLine.Option;
 
 /**
  * @author ActiveViam
  */
-@RequiredArgsConstructor
-public class Application {
+@Command(
+    name = "git-stats",
+    mixinStandardHelpOptions = true,
+    description = "Extract statistics from git repositories")
+public class Application implements Callable<Integer> {
 
   static final Logger logger = Logger.getLogger(Application.class.getName());
 
-  private final Config config;
+  @Option(names = {"-p", "--project"}, required = true, description = "Project to scan")
+  private Path projectDirectory;
 
-  public void run() {
+  @Option(names = {"-o", "--output"}, required = true, description = "Output directory")
+  private Path outputDirectory;
+
+  @Option(names = {"-b", "--branch"}, required = true, description = "Branch to inspect")
+  private String branch;
+
+  @Option(names = {"-s", "--start"}, description = "Start commit")
+  private String startCommit;
+
+  @Option(names = {"-n", "--count"}, defaultValue = "10", description = "Number of commits to collect")
+  private int count;
+
+  @Option(names = {"-i", "--indent"}, required = true, description = "Indent unit: <number><t|s> (e.g. 2t, 4s)")
+  private String indent;
+
+  @Override
+  public Integer call() {
+    val config = new Config(
+        projectDirectory,
+        outputDirectory,
+        branch,
+        startCommit != null ? startCommit : branch,
+        count,
+        IndentSpec.parse(indent));
     val startTime = System.nanoTime();
     val pipeline = /*
     new PipelineProgram(config);
@@ -39,65 +62,11 @@ public class Application {
     pipeline.run();
     val endTime = System.nanoTime();
     logger.info("Execution time: " + TimeUnit.NANOSECONDS.toSeconds(endTime - startTime) + "s");
+    return 0;
   }
 
-  static void main(final String[] args) {
-    final var options = defineCli();
-    final var app = buildApplication(args, options);
-    app.run();
-  }
-
-  private static Options defineCli() {
-    final var options = new Options();
-
-    final var projectDir = new Option("p", "project", true, "Project to scan");
-    projectDir.setRequired(true);
-    options.addOption(projectDir);
-
-    final var outputPath = new Option("o", "output", true, "Output directory");
-    outputPath.setRequired(true);
-    options.addOption(outputPath);
-
-    final var branch = new Option("b", "branch", true, "Branch to inspect");
-    branch.setRequired(true);
-    options.addOption(branch);
-
-    final var startCommit = new Option("s", "start", true, "Start commit");
-    startCommit.setRequired(false);
-    options.addOption(startCommit);
-
-    final var count = new Option("n", "count", true, "Number of commits to collect");
-    count.setRequired(false);
-    options.addOption(count);
-
-    final var indent = new Option("i", "indent", true, "Indent unit: <number><t|s> (e.g. 2t, 4s)");
-    indent.setRequired(true);
-    options.addOption(indent);
-
-    return options;
-  }
-
-  private static Application buildApplication(final String[] args, final Options options) {
-    final var parser = new DefaultParser();
-    final var formatter = new HelpFormatter();
-    final CommandLine cmd;
-    try {
-      cmd = parser.parse(options, args);
-    } catch (final ParseException e) {
-      logger.severe(e.getMessage());
-      formatter.printHelp("Git scanner", options);
-      System.exit(1);
-      throw new IllegalStateException("Unreachable");
-    }
-
-    return new Application(
-        new Config(
-            Path.of(cmd.getOptionValue("project")),
-            Path.of(cmd.getOptionValue("output")),
-            cmd.getOptionValue("branch"),
-            Optional.ofNullable(cmd.getOptionValue("start")).orElse(cmd.getOptionValue("branch")),
-            Integer.parseInt(cmd.getOptionValue("count", "10")),
-            IndentSpec.parse(cmd.getOptionValue("indent"))));
+  public static void main(final String[] args) {
+    System.exit(new CommandLine(new Application()).execute(args));
   }
 
   public record Config(
