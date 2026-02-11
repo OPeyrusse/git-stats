@@ -17,6 +17,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 # Build
 mvn compile
 
+# Format code
+mvn com.spotify.fmt:fmt-maven-plugin:format
+
 # Run tests
 mvn test
 
