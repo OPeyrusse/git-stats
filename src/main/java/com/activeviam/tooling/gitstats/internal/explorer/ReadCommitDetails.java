@@ -11,6 +11,7 @@ import com.activeviam.tooling.gitstats.ProgramException;
 import com.activeviam.tooling.gitstats.internal.explorer.Shell.Output;
 import com.activeviam.tooling.gitstats.internal.shell.ChangeReader;
 import com.activeviam.tooling.gitstats.internal.shell.CommitDateReader;
+import com.activeviam.tooling.gitstats.internal.shell.LineCountReader;
 import com.activeviam.tooling.gitstats.internal.shell.RenameReader;
 import io.opentelemetry.api.trace.Span;
 import io.opentelemetry.instrumentation.annotations.WithSpan;
@@ -69,6 +70,19 @@ public class ReadCommitDetails {
     return RenameReader.parseLine(line).orElse(null);
   }
 
+  private List<FileLineCount> readFileLineCounts() {
+    val process = Shell.start(LineCountReader.getCommand(this.commit), this.projectDir);
+
+    return Shell.Output.consumeStdout(
+        process,
+        reader ->
+            reader
+                .lines()
+                .map(LineCountReader::parseLine)
+                .filter(Objects::nonNull)
+                .toList());
+  }
+
   @WithSpan("Read commit details")
   public CommitDetails read() {
     Span.current().setAttribute("commit", this.commit);
@@ -77,10 +91,12 @@ public class ReadCommitDetails {
       val dateTask = scope.fork(this::readCommitDate);
       val changesTask = scope.fork(this::readFileChanges);
       val renameTask = scope.fork(this::readFileRenamings);
+      val lineCountTask = scope.fork(this::readFileLineCounts);
 
       scope.join();
       return new CommitDetails(
-          new CommitInfo(this.commit, dateTask.get()), changesTask.get(), renameTask.get());
+          new CommitInfo(this.commit, dateTask.get()), changesTask.get(), renameTask.get(),
+          lineCountTask.get());
     } catch (final InterruptedException e) {
       Thread.currentThread().interrupt();
       throw new ProgramException("Read interrupted while fetching details", e);
@@ -88,7 +104,8 @@ public class ReadCommitDetails {
   }
 
   public record CommitDetails(
-      CommitInfo commit, List<FileChanges> fileChanges, List<FileRenaming> fileRenamings) {
+      CommitInfo commit, List<FileChanges> fileChanges, List<FileRenaming> fileRenamings,
+      List<FileLineCount> fileLineCounts) {
 
   }
 
@@ -101,6 +118,10 @@ public class ReadCommitDetails {
   }
 
   public record FileRenaming(String from, String to) {
+
+  }
+
+  public record FileLineCount(String path, int lineCount) {
 
   }
 }

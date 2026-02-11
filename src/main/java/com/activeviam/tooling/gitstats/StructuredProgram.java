@@ -22,8 +22,10 @@ import com.activeviam.tooling.gitstats.internal.orchestration.ChangeCsvWriterPip
 import com.activeviam.tooling.gitstats.internal.orchestration.CommitCsvWritePipeline;
 import com.activeviam.tooling.gitstats.internal.orchestration.Queue;
 import com.activeviam.tooling.gitstats.internal.orchestration.RenameCsvWriterPipeline;
+import com.activeviam.tooling.gitstats.internal.orchestration.LinesCsvWriterPipeline;
 import com.activeviam.tooling.gitstats.internal.orchestration.WriteDispacher.WriteChangesAction;
 import com.activeviam.tooling.gitstats.internal.orchestration.WriteDispacher.WriteCommits;
+import com.activeviam.tooling.gitstats.internal.orchestration.WriteDispacher.WriteLinesAction;
 import com.activeviam.tooling.gitstats.internal.orchestration.WriteDispacher.WriteRenamingAction;
 import com.activeviam.tooling.gitstats.internal.writing.BranchWriter;
 import com.activeviam.tooling.gitstats.internal.writing.CommitWriter;
@@ -232,6 +234,11 @@ public class StructuredProgram {
           renameQueue, this.config.outputDirectory(), "renamings-%04d.csv");
       Threading.submit(scope, renameWriter);
 
+      val linesQueue = new Queue<Action<WriteLinesAction>>(20);
+      val linesWriter = new LinesCsvWriterPipeline(
+          linesQueue, this.config.outputDirectory(), "lines-%04d.csv");
+      Threading.submit(scope, linesWriter);
+
       Threading.submit(scope, () -> {
         while (true) {
           final var action = input.take();
@@ -242,12 +249,14 @@ public class StructuredProgram {
               commitQueue.put(new Value<>(writeCommits));
               changeQueue.put(new Value<>(new WriteChangesAction(List.of(details))));
               renameQueue.put(new Value<>(new WriteRenamingAction(List.of(details))));
+              linesQueue.put(new Value<>(new WriteLinesAction(List.of(details))));
             }
             case Stop<?> _ -> {
               branchQueue.put(Stop.create());
               commitQueue.put(Stop.create());
               changeQueue.put(Stop.create());
               renameQueue.put(Stop.create());
+              linesQueue.put(Stop.create());
               return;
             }
           }

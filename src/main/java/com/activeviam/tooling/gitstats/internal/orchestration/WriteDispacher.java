@@ -62,6 +62,10 @@ public class WriteDispacher {
 
   }
 
+  public record WriteLinesAction(List<CommitDetails> commits) {
+
+  }
+
   /**
    * @author ActiveViam
    */
