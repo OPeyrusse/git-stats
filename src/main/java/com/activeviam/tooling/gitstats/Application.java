@@ -55,10 +55,7 @@ public class Application implements Callable<Integer> {
         count,
         IndentSpec.parse(indent));
     val startTime = System.nanoTime();
-    val pipeline = /*
-    new PipelineProgram(config);
-    /*/ new StructuredProgram(config);
-    // */
+    val pipeline = new StructuredProgram(config);
     pipeline.run();
     val endTime = System.nanoTime();
     logger.info("Execution time: " + TimeUnit.NANOSECONDS.toSeconds(endTime - startTime) + "s");
