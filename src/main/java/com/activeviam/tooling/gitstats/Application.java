@@ -70,6 +70,10 @@ public class Application {
     count.setRequired(false);
     options.addOption(count);
 
+    final var indent = new Option("i", "indent", true, "Indent unit: <number><t|s> (e.g. 2t, 4s)");
+    indent.setRequired(true);
+    options.addOption(indent);
+
     return options;
   }
 
@@ -92,11 +96,37 @@ public class Application {
             Path.of(cmd.getOptionValue("output")),
             cmd.getOptionValue("branch"),
             Optional.ofNullable(cmd.getOptionValue("start")).orElse(cmd.getOptionValue("branch")),
-            Integer.parseInt(cmd.getOptionValue("count", "10"))));
+            Integer.parseInt(cmd.getOptionValue("count", "10")),
+            IndentSpec.parse(cmd.getOptionValue("indent"))));
   }
 
   public record Config(
-      Path projectDirectory, Path outputDirectory, String branch, String startCommit, int count) {
+      Path projectDirectory, Path outputDirectory, String branch, String startCommit, int count,
+      IndentSpec indentSpec) {
 
+  }
+
+  public record IndentSpec(int size, char type) {
+
+    public static IndentSpec parse(String spec) {
+      if (spec == null || spec.length() < 2) {
+        throw new IllegalArgumentException("Invalid indent spec: " + spec);
+      }
+      char typeChar = spec.charAt(spec.length() - 1);
+      if (typeChar != 't' && typeChar != 's') {
+        throw new IllegalArgumentException(
+            "Invalid indent type '" + typeChar + "', expected 't' (tab) or 's' (space)");
+      }
+      int size = Integer.parseInt(spec.substring(0, spec.length() - 1));
+      if (size <= 0) {
+        throw new IllegalArgumentException("Indent size must be positive: " + size);
+      }
+      return new IndentSpec(size, typeChar);
+    }
+
+    public String indentUnit() {
+      char ch = type == 't' ? '\t' : ' ';
+      return String.valueOf(ch).repeat(size);
+    }
   }
 }

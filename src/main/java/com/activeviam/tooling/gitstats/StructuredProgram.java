@@ -22,9 +22,11 @@ import com.activeviam.tooling.gitstats.internal.orchestration.ChangeCsvWriterPip
 import com.activeviam.tooling.gitstats.internal.orchestration.CommitCsvWritePipeline;
 import com.activeviam.tooling.gitstats.internal.orchestration.Queue;
 import com.activeviam.tooling.gitstats.internal.orchestration.RenameCsvWriterPipeline;
+import com.activeviam.tooling.gitstats.internal.orchestration.IndentationCsvWriterPipeline;
 import com.activeviam.tooling.gitstats.internal.orchestration.LinesCsvWriterPipeline;
 import com.activeviam.tooling.gitstats.internal.orchestration.WriteDispacher.WriteChangesAction;
 import com.activeviam.tooling.gitstats.internal.orchestration.WriteDispacher.WriteCommits;
+import com.activeviam.tooling.gitstats.internal.orchestration.WriteDispacher.WriteIndentationAction;
 import com.activeviam.tooling.gitstats.internal.orchestration.WriteDispacher.WriteLinesAction;
 import com.activeviam.tooling.gitstats.internal.orchestration.WriteDispacher.WriteRenamingAction;
 import com.activeviam.tooling.gitstats.internal.writing.BranchWriter;
@@ -105,7 +107,7 @@ public class StructuredProgram {
 
   private void fetchCommit(Queue<Action<CommitDetails>> output, String commit) {
     commits.add(commit);
-    val reader = new ReadCommitDetails(this.config.projectDirectory(), commit);
+    val reader = new ReadCommitDetails(this.config.projectDirectory(), commit, this.config.indentSpec());
     val details = reader.read();
     output.put(Action.value(details));
     commits.remove(commit);
@@ -239,6 +241,11 @@ public class StructuredProgram {
           linesQueue, this.config.outputDirectory(), "lines-%04d.csv");
       Threading.submit(scope, linesWriter);
 
+      val indentQueue = new Queue<Action<WriteIndentationAction>>(20);
+      val indentWriter = new IndentationCsvWriterPipeline(
+          indentQueue, this.config.outputDirectory(), "indentation-%04d.csv");
+      Threading.submit(scope, indentWriter);
+
       Threading.submit(scope, () -> {
         while (true) {
           final var action = input.take();
@@ -250,6 +257,7 @@ public class StructuredProgram {
               changeQueue.put(new Value<>(new WriteChangesAction(List.of(details))));
               renameQueue.put(new Value<>(new WriteRenamingAction(List.of(details))));
               linesQueue.put(new Value<>(new WriteLinesAction(List.of(details))));
+              indentQueue.put(new Value<>(new WriteIndentationAction(List.of(details))));
             }
             case Stop<?> _ -> {
               branchQueue.put(Stop.create());
@@ -257,6 +265,7 @@ public class StructuredProgram {
               changeQueue.put(Stop.create());
               renameQueue.put(Stop.create());
               linesQueue.put(Stop.create());
+              indentQueue.put(Stop.create());
               return;
             }
           }

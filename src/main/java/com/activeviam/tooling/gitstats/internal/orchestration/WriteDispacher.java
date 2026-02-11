@@ -66,6 +66,10 @@ public class WriteDispacher {
 
   }
 
+  public record WriteIndentationAction(List<CommitDetails> commits) {
+
+  }
+
   /**
    * @author ActiveViam
    */

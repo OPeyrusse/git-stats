@@ -7,10 +7,12 @@
 
 package com.activeviam.tooling.gitstats.internal.explorer;
 
+import com.activeviam.tooling.gitstats.Application.IndentSpec;
 import com.activeviam.tooling.gitstats.ProgramException;
 import com.activeviam.tooling.gitstats.internal.explorer.Shell.Output;
 import com.activeviam.tooling.gitstats.internal.shell.ChangeReader;
 import com.activeviam.tooling.gitstats.internal.shell.CommitDateReader;
+import com.activeviam.tooling.gitstats.internal.shell.IndentationReader;
 import com.activeviam.tooling.gitstats.internal.shell.LineCountReader;
 import com.activeviam.tooling.gitstats.internal.shell.RenameReader;
 import io.opentelemetry.api.trace.Span;
@@ -31,10 +33,12 @@ public class ReadCommitDetails {
 
   private final Path projectDir;
   private final String commit;
+  private final IndentSpec indentSpec;
 
-  public ReadCommitDetails(final Path projectDir, final String commit) {
+  public ReadCommitDetails(final Path projectDir, final String commit, final IndentSpec indentSpec) {
     this.projectDir = projectDir;
     this.commit = commit;
+    this.indentSpec = indentSpec;
   }
 
   private Instant readCommitDate() {
@@ -83,6 +87,14 @@ public class ReadCommitDetails {
                 .toList());
   }
 
+  private List<FileIndentationStats> readFileIndentation() {
+    val process = Shell.start(IndentationReader.getCommand(this.commit), this.projectDir);
+
+    return Shell.Output.consumeStdout(
+        process,
+        reader -> IndentationReader.parseOutput(reader, this.indentSpec));
+  }
+
   @WithSpan("Read commit details")
   public CommitDetails read() {
     Span.current().setAttribute("commit", this.commit);
@@ -92,11 +104,12 @@ public class ReadCommitDetails {
       val changesTask = scope.fork(this::readFileChanges);
       val renameTask = scope.fork(this::readFileRenamings);
       val lineCountTask = scope.fork(this::readFileLineCounts);
+      val indentTask = scope.fork(this::readFileIndentation);
 
       scope.join();
       return new CommitDetails(
           new CommitInfo(this.commit, dateTask.get()), changesTask.get(), renameTask.get(),
-          lineCountTask.get());
+          lineCountTask.get(), indentTask.get());
     } catch (final InterruptedException e) {
       Thread.currentThread().interrupt();
       throw new ProgramException("Read interrupted while fetching details", e);
@@ -105,7 +118,7 @@ public class ReadCommitDetails {
 
   public record CommitDetails(
       CommitInfo commit, List<FileChanges> fileChanges, List<FileRenaming> fileRenamings,
-      List<FileLineCount> fileLineCounts) {
+      List<FileLineCount> fileLineCounts, List<FileIndentationStats> fileIndentations) {
 
   }
 
@@ -122,6 +135,10 @@ public class ReadCommitDetails {
   }
 
   public record FileLineCount(String path, int lineCount) {
+
+  }
+
+  public record FileIndentationStats(String path, int minIndent, int maxIndent, double meanIndent, int medianIndent) {
 
   }
 }

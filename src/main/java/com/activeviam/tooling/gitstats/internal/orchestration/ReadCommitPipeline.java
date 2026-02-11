@@ -7,6 +7,7 @@
 
 package com.activeviam.tooling.gitstats.internal.orchestration;
 
+import com.activeviam.tooling.gitstats.Application.IndentSpec;
 import com.activeviam.tooling.gitstats.internal.orchestration.Action.Stop;
 import com.activeviam.tooling.gitstats.internal.orchestration.Action.Value;
 import com.activeviam.tooling.gitstats.internal.orchestration.FetchCommitPipeline.FetchCommit;
@@ -20,6 +21,7 @@ import lombok.RequiredArgsConstructor;
 public class ReadCommitPipeline {
 
   private final Path projectDirectory;
+  private final IndentSpec indentSpec;
   private final Queue<Action<String>> source;
   private final Queue<Action<FetchCommit>> target;
 
@@ -27,7 +29,7 @@ public class ReadCommitPipeline {
     while (true) {
       final var action = this.source.take();
       switch (action) {
-        case Value(final var commit) -> this.target.put(Action.value(new FetchCommit(this.projectDirectory, commit)));
+        case Value(final var commit) -> this.target.put(Action.value(new FetchCommit(this.projectDirectory, commit, this.indentSpec)));
         case Stop<?> _ -> {
           this.target.put(Action.stop());
           return;

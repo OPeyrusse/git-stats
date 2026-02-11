@@ -62,7 +62,7 @@ public class PipelineProgram {
 
       final var pipelineActions = this.<FetchCommit>queueOf(20);
       val commitTransformer =
-          new ReadCommitPipeline(this.config.projectDirectory(), commitOutput, pipelineActions);
+          new ReadCommitPipeline(this.config.projectDirectory(), this.config.indentSpec(), commitOutput, pipelineActions);
       Threading.submit(scope, commitTransformer::run);
 
       val detailsQueue = new Queue<Action<CommitDetails>>(10);
