@@ -33,6 +33,7 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.concurrent.Semaphore;
 import lombok.RequiredArgsConstructor;
 import lombok.val;
 
@@ -41,6 +42,8 @@ import lombok.val;
  */
 @RequiredArgsConstructor
 public class StructuredProgram {
+
+  private static final int MAX_CONCURRENT_FETCHES = 20;
 
   private final Config config;
 
@@ -74,6 +77,7 @@ public class StructuredProgram {
 
   private void processCommits(
       final Queue<Action<String>> input, final Queue<Action<CommitDetails>> output) {
+    final var semaphore = new Semaphore(MAX_CONCURRENT_FETCHES);
     Threading.execute(
         scope -> {
           String lastCommit = null;
@@ -82,7 +86,16 @@ public class StructuredProgram {
             switch (action) {
               case Value(final var commit) -> {
                 lastCommit = commit;
-                Threading.submit(scope, () -> fetchCommit(output, commit));
+                semaphore.acquire();
+                Threading.submit(
+                    scope,
+                    () -> {
+                      try {
+                        fetchCommit(output, commit);
+                      } finally {
+                        semaphore.release();
+                      }
+                    });
               }
               case Action.Stop<?> _ -> {
                 Application.logger.info("Last commit: " + lastCommit);

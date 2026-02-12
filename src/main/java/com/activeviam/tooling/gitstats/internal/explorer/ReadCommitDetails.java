@@ -49,7 +49,8 @@ public class ReadCommitDetails {
   }
 
   private List<FileChanges> readFileChanges() {
-    final var process = Shell.start(ChangeReader.getCommand(this.commit), this.projectDir);
+    final var process =
+        Shell.startDiscardingStderr(ChangeReader.getCommand(this.commit), this.projectDir);
 
     return Shell.Output.consumeStdout(
         process,
@@ -63,7 +64,8 @@ public class ReadCommitDetails {
   }
 
   private List<FileRenaming> readFileRenamings() {
-    val process = Shell.start(RenameReader.getCommand(this.commit), this.projectDir);
+    val process =
+        Shell.startDiscardingStderr(RenameReader.getCommand(this.commit), this.projectDir);
 
     return Shell.Output.consumeStdout(
         process,
@@ -76,7 +78,8 @@ public class ReadCommitDetails {
   }
 
   private List<FileLineCount> readFileLineCounts() {
-    val process = Shell.start(LineCountReader.getCommand(this.commit), this.projectDir);
+    val process =
+        Shell.startDiscardingStderr(LineCountReader.getCommand(this.commit), this.projectDir);
 
     return Shell.Output.consumeStdout(
         process,
@@ -84,7 +87,8 @@ public class ReadCommitDetails {
   }
 
   private List<FileIndentationStats> readFileIndentation() {
-    val process = Shell.start(IndentationReader.getCommand(this.commit), this.projectDir);
+    val process =
+        Shell.startDiscardingStderr(IndentationReader.getCommand(this.commit), this.projectDir);
 
     return Shell.Output.consumeStdout(
         process, reader -> IndentationReader.parseOutput(reader, this.indentSpec));

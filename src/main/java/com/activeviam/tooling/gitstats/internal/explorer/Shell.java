@@ -62,6 +62,19 @@ public class Shell {
     }
   }
 
+  public static Process startDiscardingStderr(
+      final List<String> command, final Path workingDirectory) {
+    final var builder = new ProcessBuilder(command);
+    builder.directory(workingDirectory.toFile());
+    builder.environment().put("LANG", "LC_ALL");
+    builder.redirectError(ProcessBuilder.Redirect.DISCARD);
+    try {
+      return builder.start();
+    } catch (IOException e) {
+      throw new ProgramException("Failure in command " + command, e);
+    }
+  }
+
   public record Output(InputStream stdout, InputStream stderr) {
     public static String readStream(final InputStream stream) {
       try {
