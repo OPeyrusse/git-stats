@@ -52,7 +52,8 @@ public class BranchCommitReader {
     final var increment = 100;
     String startCommit = getResolvedCommit();
     for (int i = 0; i < this.historySize; i += increment) {
-      final var commits = this.readCommits(startCommit, increment);
+      final var batchSize = Math.min(increment, this.historySize - i);
+      final var commits = this.readCommits(startCommit, batchSize);
       final var filteredCommits =
           commits.stream().takeWhile(commit -> !commit.equals(this.lastCommit)).toList();
       filteredCommits.stream().map(Value::new).forEach(this.output::put);
