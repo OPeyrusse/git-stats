@@ -8,13 +8,9 @@
 package com.activeviam.tooling.gitstats;
 
 import java.nio.file.Path;
-import java.util.concurrent.Callable;
-import java.util.concurrent.TimeUnit;
 import java.util.logging.Logger;
-import lombok.val;
 import picocli.CommandLine;
 import picocli.CommandLine.Command;
-import picocli.CommandLine.Option;
 
 /**
  * @author ActiveViam
@@ -22,62 +18,15 @@ import picocli.CommandLine.Option;
 @Command(
     name = "git-stats",
     mixinStandardHelpOptions = true,
-    description = "Extract statistics from git repositories")
-public class Application implements Callable<Integer> {
+    description = "Extract statistics from git repositories",
+    subcommands = {HistoryCommand.class, TreeStatsCommand.class})
+public class Application implements Runnable {
 
   static final Logger logger = Logger.getLogger(Application.class.getName());
 
-  @Option(
-      names = {"-p", "--project"},
-      required = true,
-      description = "Project to scan")
-  private Path projectDirectory;
-
-  @Option(
-      names = {"-o", "--output"},
-      required = true,
-      description = "Output directory")
-  private Path outputDirectory;
-
-  @Option(
-      names = {"-b", "--branch"},
-      required = true,
-      description = "Branch to inspect")
-  private String branch;
-
-  @Option(
-      names = {"-s", "--start"},
-      description = "Start commit")
-  private String startCommit;
-
-  @Option(
-      names = {"-n", "--count"},
-      defaultValue = "10",
-      description = "Number of commits to collect")
-  private int count;
-
-  @Option(
-      names = {"-i", "--indent"},
-      required = true,
-      description = "Indent unit: <number><t|s> (e.g. 2t, 4s)")
-  private String indent;
-
   @Override
-  public Integer call() {
-    val config =
-        new Config(
-            projectDirectory,
-            outputDirectory,
-            branch,
-            startCommit != null ? startCommit : branch,
-            count,
-            IndentSpec.parse(indent));
-    val startTime = System.nanoTime();
-    val pipeline = new StructuredProgram(config);
-    pipeline.run();
-    val endTime = System.nanoTime();
-    logger.info("Execution time: " + TimeUnit.NANOSECONDS.toSeconds(endTime - startTime) + "s");
-    return 0;
+  public void run() {
+    new CommandLine(this).usage(System.out);
   }
 
   public static void main(final String[] args) {

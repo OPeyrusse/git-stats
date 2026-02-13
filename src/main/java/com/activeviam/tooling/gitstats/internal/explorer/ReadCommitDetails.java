@@ -31,15 +31,25 @@ import lombok.val;
  */
 public class ReadCommitDetails {
 
+  public enum FetchMode {
+    HISTORY,
+    TREE_STATS
+  }
+
   private final Path projectDir;
   private final String commit;
   private final IndentSpec indentSpec;
+  private final FetchMode mode;
 
   public ReadCommitDetails(
-      final Path projectDir, final String commit, final IndentSpec indentSpec) {
+      final Path projectDir,
+      final String commit,
+      final IndentSpec indentSpec,
+      final FetchMode mode) {
     this.projectDir = projectDir;
     this.commit = commit;
     this.indentSpec = indentSpec;
+    this.mode = mode;
   }
 
   private Instant readCommitDate() {
@@ -99,19 +109,31 @@ public class ReadCommitDetails {
     Span.current().setAttribute("commit", this.commit);
     Span.current().setAttribute("project", this.projectDir.toString());
     try (val scope = StructuredTaskScope.open(Joiner.allSuccessfulOrThrow())) {
-      val dateTask = scope.fork(this::readCommitDate);
-      val changesTask = scope.fork(this::readFileChanges);
-      val renameTask = scope.fork(this::readFileRenamings);
-      val lineCountTask = scope.fork(this::readFileLineCounts);
-      val indentTask = scope.fork(this::readFileIndentation);
-
-      scope.join();
-      return new CommitDetails(
-          new CommitInfo(this.commit, dateTask.get()),
-          changesTask.get(),
-          renameTask.get(),
-          lineCountTask.get(),
-          indentTask.get());
+      return switch (this.mode) {
+        case HISTORY -> {
+          val dateTask = scope.fork(this::readCommitDate);
+          val changesTask = scope.fork(this::readFileChanges);
+          val renameTask = scope.fork(this::readFileRenamings);
+          scope.join();
+          yield new CommitDetails(
+              new CommitInfo(this.commit, dateTask.get()),
+              changesTask.get(),
+              renameTask.get(),
+              List.of(),
+              List.of());
+        }
+        case TREE_STATS -> {
+          val lineCountTask = scope.fork(this::readFileLineCounts);
+          val indentTask = scope.fork(this::readFileIndentation);
+          scope.join();
+          yield new CommitDetails(
+              new CommitInfo(this.commit, Instant.EPOCH),
+              List.of(),
+              List.of(),
+              lineCountTask.get(),
+              indentTask.get());
+        }
+      };
     } catch (final InterruptedException e) {
       Thread.currentThread().interrupt();
       throw new ProgramException("Read interrupted while fetching details", e);

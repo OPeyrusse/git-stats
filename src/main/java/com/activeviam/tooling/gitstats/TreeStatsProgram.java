@@ -12,21 +12,15 @@ import com.activeviam.tooling.gitstats.internal.Threading;
 import com.activeviam.tooling.gitstats.internal.explorer.BranchCommitReader;
 import com.activeviam.tooling.gitstats.internal.explorer.ReadCommitDetails;
 import com.activeviam.tooling.gitstats.internal.explorer.ReadCommitDetails.CommitDetails;
+import com.activeviam.tooling.gitstats.internal.explorer.ReadCommitDetails.FetchMode;
 import com.activeviam.tooling.gitstats.internal.orchestration.Action;
 import com.activeviam.tooling.gitstats.internal.orchestration.Action.Stop;
 import com.activeviam.tooling.gitstats.internal.orchestration.Action.Value;
-import com.activeviam.tooling.gitstats.internal.orchestration.BranchCsvWritePipeline;
-import com.activeviam.tooling.gitstats.internal.orchestration.ChangeCsvWriterPipeline;
-import com.activeviam.tooling.gitstats.internal.orchestration.CommitCsvWritePipeline;
 import com.activeviam.tooling.gitstats.internal.orchestration.IndentationCsvWriterPipeline;
 import com.activeviam.tooling.gitstats.internal.orchestration.LinesCsvWriterPipeline;
 import com.activeviam.tooling.gitstats.internal.orchestration.Queue;
-import com.activeviam.tooling.gitstats.internal.orchestration.RenameCsvWriterPipeline;
-import com.activeviam.tooling.gitstats.internal.orchestration.WriteDispacher.WriteChangesAction;
-import com.activeviam.tooling.gitstats.internal.orchestration.WriteDispacher.WriteCommits;
 import com.activeviam.tooling.gitstats.internal.orchestration.WriteDispacher.WriteIndentationAction;
 import com.activeviam.tooling.gitstats.internal.orchestration.WriteDispacher.WriteLinesAction;
-import com.activeviam.tooling.gitstats.internal.orchestration.WriteDispacher.WriteRenamingAction;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.util.Collections;
@@ -41,7 +35,7 @@ import lombok.val;
  * @author ActiveViam
  */
 @RequiredArgsConstructor
-public class StructuredProgram {
+public class TreeStatsProgram {
 
   private static final int MAX_CONCURRENT_FETCHES = 20;
 
@@ -112,7 +106,8 @@ public class StructuredProgram {
   private void fetchCommit(Queue<Action<CommitDetails>> output, String commit) {
     commits.add(commit);
     val reader =
-        new ReadCommitDetails(this.config.projectDirectory(), commit, this.config.indentSpec());
+        new ReadCommitDetails(
+            this.config.projectDirectory(), commit, this.config.indentSpec(), FetchMode.TREE_STATS);
     val details = reader.read();
     output.put(Action.value(details));
     commits.remove(commit);
@@ -121,33 +116,6 @@ public class StructuredProgram {
   private void processDetailsToCsv(final Queue<Action<CommitDetails>> input) {
     Threading.execute(
         scope -> {
-          val branchQueue = new Queue<Action<WriteCommits>>(20);
-          val branchWriter =
-              new BranchCsvWritePipeline(
-                  branchQueue,
-                  this.config.outputDirectory(),
-                  "branches-%04d.csv",
-                  this.config.branch());
-          Threading.submit(scope, branchWriter);
-
-          val changeQueue = new Queue<Action<WriteChangesAction>>(20);
-          val changeWriter =
-              new ChangeCsvWriterPipeline(
-                  changeQueue, this.config.outputDirectory(), "changes-%04d.csv");
-          Threading.submit(scope, changeWriter);
-
-          val commitQueue = new Queue<Action<WriteCommits>>(20);
-          val commitWriter =
-              new CommitCsvWritePipeline(
-                  commitQueue, this.config.outputDirectory(), "commits-%04d.csv");
-          Threading.submit(scope, commitWriter);
-
-          val renameQueue = new Queue<Action<WriteRenamingAction>>(20);
-          val renameWriter =
-              new RenameCsvWriterPipeline(
-                  renameQueue, this.config.outputDirectory(), "renamings-%04d.csv");
-          Threading.submit(scope, renameWriter);
-
           val linesQueue = new Queue<Action<WriteLinesAction>>(20);
           val linesWriter =
               new LinesCsvWriterPipeline(
@@ -167,19 +135,10 @@ public class StructuredProgram {
                   final var action = input.take();
                   switch (action) {
                     case Value(final var details) -> {
-                      final var writeCommits = new WriteCommits(List.of(details.commit()));
-                      branchQueue.put(new Value<>(writeCommits));
-                      commitQueue.put(new Value<>(writeCommits));
-                      changeQueue.put(new Value<>(new WriteChangesAction(List.of(details))));
-                      renameQueue.put(new Value<>(new WriteRenamingAction(List.of(details))));
                       linesQueue.put(new Value<>(new WriteLinesAction(List.of(details))));
                       indentQueue.put(new Value<>(new WriteIndentationAction(List.of(details))));
                     }
                     case Stop<?> _ -> {
-                      branchQueue.put(Stop.create());
-                      commitQueue.put(Stop.create());
-                      changeQueue.put(Stop.create());
-                      renameQueue.put(Stop.create());
                       linesQueue.put(Stop.create());
                       indentQueue.put(Stop.create());
                       return;

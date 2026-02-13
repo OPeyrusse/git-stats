@@ -8,6 +8,7 @@
 package com.activeviam.tooling.gitstats.internal.orchestration;
 
 import com.activeviam.tooling.gitstats.Application.IndentSpec;
+import com.activeviam.tooling.gitstats.internal.explorer.ReadCommitDetails.FetchMode;
 import com.activeviam.tooling.gitstats.internal.orchestration.Action.Stop;
 import com.activeviam.tooling.gitstats.internal.orchestration.Action.Value;
 import com.activeviam.tooling.gitstats.internal.orchestration.FetchCommitPipeline.FetchCommit;
@@ -22,6 +23,7 @@ public class ReadCommitPipeline {
 
   private final Path projectDirectory;
   private final IndentSpec indentSpec;
+  private final FetchMode mode;
   private final Queue<Action<String>> source;
   private final Queue<Action<FetchCommit>> target;
 
@@ -31,7 +33,8 @@ public class ReadCommitPipeline {
       switch (action) {
         case Value(final var commit) ->
             this.target.put(
-                Action.value(new FetchCommit(this.projectDirectory, commit, this.indentSpec)));
+                Action.value(
+                    new FetchCommit(this.projectDirectory, commit, this.indentSpec, this.mode)));
         case Stop<?> _ -> {
           this.target.put(Action.stop());
           return;

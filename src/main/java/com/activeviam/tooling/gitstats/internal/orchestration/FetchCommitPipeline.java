@@ -10,6 +10,7 @@ package com.activeviam.tooling.gitstats.internal.orchestration;
 import com.activeviam.tooling.gitstats.Application.IndentSpec;
 import com.activeviam.tooling.gitstats.internal.explorer.ReadCommitDetails;
 import com.activeviam.tooling.gitstats.internal.explorer.ReadCommitDetails.CommitDetails;
+import com.activeviam.tooling.gitstats.internal.explorer.ReadCommitDetails.FetchMode;
 import com.activeviam.tooling.gitstats.internal.orchestration.Action.Stop;
 import com.activeviam.tooling.gitstats.internal.orchestration.Action.Value;
 import java.nio.file.Path;
@@ -28,8 +29,13 @@ public class FetchCommitPipeline {
     while (true) {
       final var action = this.commitQueue.take();
       switch (action) {
-        case Value(FetchCommit(final var gitDir, final var commit, final var indentSpec)) -> {
-          final var infoReader = new ReadCommitDetails(gitDir, commit, indentSpec);
+        case Value(
+                FetchCommit(
+                    final var gitDir,
+                    final var commit,
+                    final var indentSpec,
+                    final var mode)) -> {
+          final var infoReader = new ReadCommitDetails(gitDir, commit, indentSpec, mode);
           final var info = infoReader.read();
           this.infoQueue.put(Action.value(info));
         }
@@ -41,5 +47,5 @@ public class FetchCommitPipeline {
     }
   }
 
-  public record FetchCommit(Path gitDir, String commit, IndentSpec indentSpec) {}
+  public record FetchCommit(Path gitDir, String commit, IndentSpec indentSpec, FetchMode mode) {}
 }
