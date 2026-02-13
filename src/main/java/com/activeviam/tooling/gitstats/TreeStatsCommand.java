@@ -31,6 +31,11 @@ public class TreeStatsCommand implements Callable<Integer> {
       description = "Indent unit: <number><t|s> (e.g. 2t, 4s)")
   private String indent;
 
+  @Option(
+      names = {"--all-files"},
+      description = "Compute stats for all files in the tree, not just changed files")
+  private boolean allFiles;
+
   @Override
   public Integer call() {
     val config =
@@ -40,7 +45,8 @@ public class TreeStatsCommand implements Callable<Integer> {
             options.branch,
             options.resolvedStartCommit(),
             options.count,
-            Application.IndentSpec.parse(indent));
+            Application.IndentSpec.parse(indent),
+            allFiles);
     val startTime = System.nanoTime();
     val program = new TreeStatsProgram(config);
     program.run();

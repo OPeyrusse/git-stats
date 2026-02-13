@@ -41,6 +41,13 @@ public class LineCountReader {
     return List.of("git", "diff", "--numstat", getEmptyTreeHash(), commit);
   }
 
+  public static List<String> getCommand(final String commit, final List<String> paths) {
+    final var command = new java.util.ArrayList<>(getCommand(commit));
+    command.add("--");
+    command.addAll(paths);
+    return command;
+  }
+
   public static FileLineCount parseLine(final String line) {
     if (line.isBlank()) {
       return null;

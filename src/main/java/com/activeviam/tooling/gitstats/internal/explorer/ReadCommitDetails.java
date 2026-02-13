@@ -40,16 +40,27 @@ public class ReadCommitDetails {
   private final String commit;
   private final IndentSpec indentSpec;
   private final FetchMode mode;
+  private final boolean allFiles;
 
   public ReadCommitDetails(
       final Path projectDir,
       final String commit,
       final IndentSpec indentSpec,
       final FetchMode mode) {
+    this(projectDir, commit, indentSpec, mode, false);
+  }
+
+  public ReadCommitDetails(
+      final Path projectDir,
+      final String commit,
+      final IndentSpec indentSpec,
+      final FetchMode mode,
+      final boolean allFiles) {
     this.projectDir = projectDir;
     this.commit = commit;
     this.indentSpec = indentSpec;
     this.mode = mode;
+    this.allFiles = allFiles;
   }
 
   private Instant readCommitDate() {
@@ -87,18 +98,31 @@ public class ReadCommitDetails {
     return RenameReader.parseLine(line).orElse(null);
   }
 
-  private List<FileLineCount> readFileLineCounts() {
-    val process =
-        Shell.startDiscardingStderr(LineCountReader.getCommand(this.commit), this.projectDir);
+  private List<String> readChangedFiles() {
+    val command = List.of("git", "diff-tree", "--no-commit-id", "--name-only", "-r", this.commit);
+    val process = Shell.startDiscardingStderr(command, this.projectDir);
+    return Shell.Output.consumeStdout(
+        process, reader -> reader.lines().filter(Predicate.not(String::isBlank)).toList());
+  }
+
+  private List<FileLineCount> readFileLineCounts(final List<String> changedPaths) {
+    val command =
+        changedPaths != null
+            ? LineCountReader.getCommand(this.commit, changedPaths)
+            : LineCountReader.getCommand(this.commit);
+    val process = Shell.startDiscardingStderr(command, this.projectDir);
 
     return Shell.Output.consumeStdout(
         process,
         reader -> reader.lines().map(LineCountReader::parseLine).filter(Objects::nonNull).toList());
   }
 
-  private List<FileIndentationStats> readFileIndentation() {
-    val process =
-        Shell.startDiscardingStderr(IndentationReader.getCommand(this.commit), this.projectDir);
+  private List<FileIndentationStats> readFileIndentation(final List<String> changedPaths) {
+    val command =
+        changedPaths != null
+            ? IndentationReader.getCommand(this.commit, changedPaths)
+            : IndentationReader.getCommand(this.commit);
+    val process = Shell.startDiscardingStderr(command, this.projectDir);
 
     return Shell.Output.consumeStdout(
         process, reader -> IndentationReader.parseOutput(reader, this.indentSpec));
@@ -123,8 +147,9 @@ public class ReadCommitDetails {
               List.of());
         }
         case TREE_STATS -> {
-          val lineCountTask = scope.fork(this::readFileLineCounts);
-          val indentTask = scope.fork(this::readFileIndentation);
+          val changedPaths = this.allFiles ? null : readChangedFiles();
+          val lineCountTask = scope.fork(() -> readFileLineCounts(changedPaths));
+          val indentTask = scope.fork(() -> readFileIndentation(changedPaths));
           scope.join();
           yield new CommitDetails(
               new CommitInfo(this.commit, Instant.EPOCH),

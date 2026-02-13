@@ -25,6 +25,13 @@ public class IndentationReader {
     return List.of("git", "diff", LineCountReader.getEmptyTreeHash(), commit);
   }
 
+  public static List<String> getCommand(final String commit, final List<String> paths) {
+    final var command = new java.util.ArrayList<>(getCommand(commit));
+    command.add("--");
+    command.addAll(paths);
+    return command;
+  }
+
   public static List<FileIndentationStats> parseOutput(
       final BufferedReader reader, final IndentSpec indentSpec) {
     final var results = new ArrayList<FileIndentationStats>();

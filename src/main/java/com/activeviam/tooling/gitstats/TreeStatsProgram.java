@@ -107,7 +107,11 @@ public class TreeStatsProgram {
     commits.add(commit);
     val reader =
         new ReadCommitDetails(
-            this.config.projectDirectory(), commit, this.config.indentSpec(), FetchMode.TREE_STATS);
+            this.config.projectDirectory(),
+            commit,
+            this.config.indentSpec(),
+            FetchMode.TREE_STATS,
+            this.config.allFiles());
     val details = reader.read();
     output.put(Action.value(details));
     commits.remove(commit);

@@ -33,7 +33,8 @@ public class HistoryCommand implements Callable<Integer> {
             options.branch,
             options.resolvedStartCommit(),
             options.count,
-            null);
+            null,
+            false);
     val startTime = System.nanoTime();
     val program = new HistoryProgram(config);
     program.run();

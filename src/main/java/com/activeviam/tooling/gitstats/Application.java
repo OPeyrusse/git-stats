@@ -39,7 +39,8 @@ public class Application implements Runnable {
       String branch,
       String startCommit,
       int count,
-      IndentSpec indentSpec) {}
+      IndentSpec indentSpec,
+      boolean allFiles) {}
 
   public record IndentSpec(int size, char type) {
 
